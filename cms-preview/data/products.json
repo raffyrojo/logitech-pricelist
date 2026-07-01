@@ -442,23 +442,6 @@
     "warranty": "1"
   },
   {
-    "code": "910-006605",
-    "name": "B100 Optical USB Mouse",
-    "category": "Mice",
-    "desc": "Comfortable. Durable. Essential",
-    "color": "Black",
-    "srp": 220,
-    "dp": 172,
-    "carton": "80",
-    "upc": "97855175793",
-    "material": "432117080065",
-    "channel": "Offline",
-    "specs": "Sensor Technology\n*Optical Tracking\n*DPI (Min/Max): 1000±\nButtons\n*Number of Buttons: 3 (Left/Right-click, Middle click)\nScrolling\n*Line-by-line scrolling\n*Scroll Wheel: Yes, optical",
-    "sysreq": "USB-A Cord\nRequired : Available USB port\nWindows 7, 8, 10 or later\nmacOS 10.5 or later\nChromeOS, Certified Works With Chromebook \nLinux Kernel 2.6+",
-    "dim": "Mouse\nHeight: 4.45 in (113 mm)\nWidth: 2.44 in (62 mm)\nDepth: 1.50 in (38 mm)\nWeight: 3.17 oz (90 g)\nCord\nCable length: 70.87 in (180 cm)",
-    "warranty": "3"
-  },
-  {
     "code": "910-004659",
     "name": "B170 Wireless Mouse",
     "category": "Mice",
@@ -3007,5 +2990,23 @@
     "sysreq": "Works with any device with either a headphone jack (3.5 mm), RCA, six-channel direct, digital coaxial input or optical inputs\nTelevision Computer Smartphone Tablet Music player DVD player Blu-ray™ player PlayStation® Xbox® Wii™",
     "dim": "Satellites\nHeight: 165.3 mm\nWidth: 99.3 mm\nDepth: 92.5 mm\nWeight: 840 g\nSubwoofer\nHeight: 292 mm\nWidth: 280 mm\nDepth: 350 mm\nWeight: 8.540 kg\nCenter Channel\nHeight: 100.3 mm\nWidth: 166.3 mm\nDepth: 93.5 mm\nWeight: 0.89 kg\nControl console\nHeight: 293 mm\nWidth: 281 mm\nWeight: 0.50 kg\nWireless Remote\nHeight: 111 mm\nWidth: 43 mm\nDepth: 18.9 mm\nWeight: (w/ Battery) 67 g",
     "warranty": "1"
+  },
+  {
+    "code": "910-006605",
+    "name": "B100 Optical USB Mouse",
+    "category": "Mice",
+    "model": "",
+    "desc": "Comfortable. Durable. Essential",
+    "color": "Black",
+    "srp": 220,
+    "dp": 172,
+    "carton": "900",
+    "upc": "97855175793",
+    "material": "432117080065",
+    "channel": "Offline",
+    "specs": "Sensor Technology\n*Optical Tracking\n*DPI (Min/Max): 1000±\nButtons\n*Number of Buttons: 3 (Left/Right-click, Middle click)\nScrolling\n*Line-by-line scrolling\n*Scroll Wheel: Yes, optical",
+    "sysreq": "USB-A Cord\nRequired : Available USB port\nWindows 7, 8, 10 or later\nmacOS 10.5 or later\nChromeOS, Certified Works With Chromebook \nLinux Kernel 2.6+",
+    "dim": "Mouse\nHeight: 4.45 in (113 mm)\nWidth: 2.44 in (62 mm)\nDepth: 1.50 in (38 mm)\nWeight: 3.17 oz (90 g)\nCord\nCable length: 70.87 in (180 cm)",
+    "warranty": "3"
   }
 ]
