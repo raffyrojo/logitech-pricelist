@@ -2444,7 +2444,7 @@ document.querySelectorAll('.vt').forEach(b=>b.classList.toggle('on',b.dataset.vi
 
   /* ---------- IndexedDB ---------- */
   const IDB={db:null,
-    open(){return new Promise((res,rej)=>{let r;try{r=indexedDB.open('logiPL',1);}catch(e){return rej(e);}
+    open(){return new Promise((res,rej)=>{let r;try{r=indexedDB.open('logiPL-cms',1);}catch(e){return rej(e);}
       r.onupgradeneeded=e=>e.target.result.createObjectStore('kv');
       r.onsuccess=e=>{IDB.db=e.target.result;res();}; r.onerror=()=>rej(r.error);});},
     get(k){return new Promise(res=>{try{const t=IDB.db.transaction('kv').objectStore('kv').get(k);
