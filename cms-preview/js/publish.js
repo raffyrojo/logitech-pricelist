@@ -34,7 +34,7 @@
 
   async function publish(btn) {
     var cfg = window.CMS_CONFIG || {};
-    var ep = cfg.backendEndpoint;
+    var ep = cfg.backendEndpoint || "https://logitech-cms.raffyortega-rojo.workers.dev";
     if (!ep) { toast("Publish endpoint not set in config.js", false); return; }
 
     var list = currentProducts();
