@@ -2825,7 +2825,7 @@ document.querySelectorAll('.vt').forEach(b=>b.classList.toggle('on',b.dataset.vi
           <div class="ad-field"><label>Category <span class="req-star">*</span></label><input id="f_cat" list="catList" value="${esc(d.category)}"><datalist id="catList">${cats.map(c=>`<option value="${esc(c)}">`).join('')}</datalist></div>
         </div>
         <div class="ad-grid3">
-          <div class="ad-field"><label>Model Number</label><input id="f_model" value="${esc(d.model)}"></div>
+          
           <div class="ad-field"><label>Channel</label><input id="f_chan" value="${esc(d.channel)}"></div>
           <div class="ad-field"><label>Warranty (yrs)</label><input id="f_warr" value="${esc(d.warranty)}"></div>
         </div>
@@ -2886,7 +2886,7 @@ document.querySelectorAll('.vt').forEach(b=>b.classList.toggle('on',b.dataset.vi
         r.onload=()=>{pullDraft();draft.variants[i].img=r.result;renderSkuEditor();};r.readAsDataURL(file);};});
   }
   function pullDraft(){
-    draft.name=$('f_name').value;draft.category=$('f_cat').value;draft.model=$('f_model').value;draft.channel=$('f_chan').value;
+    draft.name=$('f_name').value;draft.category=$('f_cat').value;draft.channel=$('f_chan').value;
     draft.warranty=$('f_warr').value;draft.carton=$('f_carton').value;draft.desc=$('f_desc').value;
     draft.specs=$('f_specs').value;draft.sysreq=$('f_sys').value;draft.dim=$('f_dim').value;
     $('varWrap').querySelectorAll('.var-card').forEach(card=>{const i=+card.dataset.i;
