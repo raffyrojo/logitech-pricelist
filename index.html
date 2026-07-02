@@ -1595,7 +1595,7 @@ function filtered(){
   if(s==='az')list.sort((a,b)=>a.name.localeCompare(b.name));
   else if(s==='za')list.sort((a,b)=>b.name.localeCompare(a.name));
   else if(s==='plow')list.sort((a,b)=>(price(a)||1e12)-(price(b)||1e12));
-  else if(s==='phigh')list.sort((a,b)=>price(b)-price(a));
+  else if(s==='phigh')list.sort((a,b)=>price(b)-price(a));else{const o={};let k=0;list.forEach(g=>{const c=g.category||'';if(!(c in o))o[c]=k++;});list.sort((a,b)=>o[a.category||'']-o[b.category||'']);}
   return list;
 }
 
