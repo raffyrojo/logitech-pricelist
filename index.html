@@ -2929,7 +2929,7 @@ document.querySelectorAll('.vt').forEach(b=>b.classList.toggle('on',b.dataset.vi
     if(draft.orig){const oc=draft.orig.cat,on=draft.orig.nm;
       for(let i=products.length-1;i>=0;i--)if(products[i].category===oc&&products[i].name===on)products.splice(i,1);}
     draft.variants.forEach(v=>{const code=v.code.trim();
-      products.push({code,name:draft.name.trim(),category:draft.category.trim(),model:(draft.model||'').trim(),desc:draft.desc,color:v.color.trim(),
+      products.push({code,name:draft.name.trim(),category:draft.category.trim(),desc:draft.desc,color:v.color.trim(),
         srp:num(v.srp),dp:num(v.dp),carton:draft.carton,upc:(v.upc||'').trim(),material:(v.material||'').trim(),
         channel:draft.channel,specs:draft.specs,sysreq:draft.sysreq,dim:draft.dim,warranty:draft.warranty});
       if(v.img)IMAGES[code]=v.img;});
@@ -2938,7 +2938,7 @@ document.querySelectorAll('.vt').forEach(b=>b.classList.toggle('on',b.dataset.vi
   function duplicateSku(cat,nm){
     const g=findGroup(cat,nm);if(!g)return;const taken=allCodes();
     g.variants.forEach(v=>{let nc=v.code+'-COPY',n=2;while(taken.has(nc)){nc=v.code+'-COPY'+(n++);}taken.add(nc);
-      products.push({code:nc,name:g.name+' (Copy)',category:g.category,model:'',desc:g.desc,color:v.color,srp:v.srp,dp:v.dp,
+      products.push({code:nc,name:g.name+' (Copy)',category:g.category,desc:g.desc,color:v.color,srp:v.srp,dp:v.dp,
         carton:g.carton,upc:'',material:v.material,channel:g.channel,specs:g.specs,sysreq:g.sysreq,dim:g.dim,warranty:g.warranty});
       if(IMAGES[v.code])IMAGES[nc]=IMAGES[v.code];});
     markDirty();rebuildAll();renderSkuList();
