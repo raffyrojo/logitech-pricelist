@@ -1,0 +1,82 @@
+/* ============================================================================
+   Logitech Pricelist — brand restyle v1 (2026-07-04)
+   Loaded AFTER the app's inline styles; overrides design tokens + components
+   to match Logitech brand guidelines (logitech.com extraction):
+   - Primary dark teal #0D3A38, CTA mint #00FDCF with dark text
+   - Roboto (Brown is Logitech-proprietary; Roboto is the licensed fallback)
+   - Pill buttons/inputs (60px), cards/radius 12px, white background
+   No markup or behavior changes — pure CSS.
+   ============================================================================ */
+@import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;600;700;800&display=swap');
+
+:root{
+  /* brand tokens */
+  --lila:#0D3A38;
+  --accent:#0D3A38;
+  --accent-d:#062522;
+  --accent-soft:#D6F5F0;
+  --green:#0D3A38;          /* dealer price — dark teal, readable on white */
+  --ink:#1B1B1B;
+  --kohle:#0D3A38;
+  --radius:12px;
+  --radius-s:12px;
+}
+
+/* ---------- typography ---------- */
+body,
+button, input, select, textarea{
+  font-family:'Roboto','Helvetica Neue',Arial,'Nimbus Sans',sans-serif;
+}
+body{ background:#FFFFFF; }
+
+/* ---------- hero: Logitech dark teal, mint accents ---------- */
+.hero{
+  background:
+    radial-gradient(1100px 460px at 82% -20%, rgba(0,253,207,.16), transparent 60%),
+    radial-gradient(820px 380px at 2% 130%, rgba(0,253,207,.08), transparent 55%),
+    linear-gradient(180deg,#0D3A38,#062522);
+}
+.hero h1 .ac{ color:#00FDCF; }
+.hero .cta{
+  background:#00FDCF; color:#1B1B1B; border-radius:60px; font-weight:700;
+}
+.hero .cta:hover{
+  background:#5CFEDE; color:#1B1B1B;
+  box-shadow:0 12px 30px rgba(0,253,207,.35);
+}
+.hero .cta svg{ color:#1B1B1B; }
+.hero-badge{
+  background:rgba(0,253,207,.14);
+  border:1px solid rgba(0,253,207,.38);
+}
+.hero-badge .dot{ background:#00FDCF; box-shadow:0 0 0 3px rgba(0,253,207,.28); }
+
+/* ---------- pills: search, controls, chips, buttons ---------- */
+#navSearch{ border-radius:60px; }
+#navSearch:focus{ border-color:var(--accent); box-shadow:0 0 0 4px rgba(13,58,56,.14); }
+.mini-search input{ border-radius:60px; }
+.ctrl select{ border-radius:60px; }
+.cat-pill{ border-radius:60px; }
+.exp{ border-radius:60px; }
+.exp.primary{ background:#00FDCF; border-color:#00FDCF; color:#1B1B1B; }
+.exp.primary:hover{ background:#5CFEDE; border-color:#5CFEDE; color:#1B1B1B; }
+
+/* teal (not purple) focus rings everywhere */
+input:focus, select:focus, textarea:focus{
+  box-shadow:0 0 0 2px rgba(13,58,56,.15);
+}
+
+/* ---------- CMS-injected buttons (inline JS styles need !important) ---------- */
+#cmsPublishBtn{
+  background:#00FDCF !important;
+  color:#1B1B1B !important;
+  border-radius:60px !important;
+  box-shadow:none !important;
+  font-family:'Roboto','Helvetica Neue',Arial,sans-serif !important;
+}
+#cmsUsersBtn{
+  background:#0D3A38 !important;
+  border-radius:60px !important;
+  box-shadow:none !important;
+  font-family:'Roboto','Helvetica Neue',Arial,sans-serif !important;
+}
