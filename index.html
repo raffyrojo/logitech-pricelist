@@ -2686,7 +2686,6 @@ document.querySelectorAll('.vt').forEach(b=>b.classList.toggle('on',b.dataset.vi
           <div class="sx-prof" id="sxProf"><span class="sx-av">RR</span><span class="sx-id"><span class="nm">Raffy Rojo</span><span class="rl">Admin</span></span>${ICN.car}
             <div class="sx-pmenu"><div class="sx-pmu">@raffy_rojo</div>
               <button data-tab="settings">${ICN.gear}<span>Settings</span></button>
-              <button id="sxSave2">${ICN.save}<span>Save</span></button>
               <button class="danger" data-tab="logout">${ICN.out}<span>Logout</span></button>
             </div></div>
           <button class="x" id="adX" title="Close">&times;</button>
@@ -2699,7 +2698,6 @@ document.querySelectorAll('.vt').forEach(b=>b.classList.toggle('on',b.dataset.vi
     openBg();
     adModal.querySelectorAll('.sx-nav').forEach(b=>b.onclick=()=>showTab(b.dataset.tab));
     $('adX').onclick=confirmClose;
-    $('sxSave2').onclick=()=>doSave(false);
     $('sxDrawerX').onclick=closeDrawer; $('sxScrim').onclick=closeDrawer;
     const prof=$('sxProf');
     prof.onclick=e=>{e.stopPropagation();prof.classList.toggle('open');};
