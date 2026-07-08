@@ -1433,7 +1433,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
  */function n(e){return e>=65&&e<=90||95===e||e>=97&&e<=122||e>=192&&e<=214||e>=216&&e<=246||e>=248&&e<=767||e>=880&&e<=893||e>=895&&e<=8191||e>=8204&&e<=8205||e>=8304&&e<=8591||e>=11264&&e<=12271||e>=12289&&e<=55295||e>=63744&&e<=64975||e>=65008&&e<=65533||e>=65536&&e<=983039}Object.defineProperty(r,"__esModule",{value:!0}),r.NC_NAME_START_CHAR="A-Z_a-z\xc0-\xd6\xd8-\xf6\xf8-\u02ff\u0370-\u037d\u037f-\u1fff\u200c-\u200d\u2070-\u218f\u2c00-\u2fef\u3001-\ud7ff\uf900-\ufdcf\ufdf0-\ufffd\ud800\udc00-\udb7f\udfff",r.NC_NAME_CHAR="-"+r.NC_NAME_START_CHAR+".0-9\xb7\u0300-\u036f\u203f-\u2040",r.NC_NAME_START_CHAR_RE=new RegExp("^["+r.NC_NAME_START_CHAR+"]$","u"),r.NC_NAME_CHAR_RE=new RegExp("^["+r.NC_NAME_CHAR+"]$","u"),r.NC_NAME_RE=new RegExp("^["+r.NC_NAME_START_CHAR+"]["+r.NC_NAME_CHAR+"]*$","u"),r.isNCNameStartChar=n,r.isNCNameChar=function(e){return n(e)||45===e||46===e||e>=48&&e<=57||183===e||e>=768&&e<=879||e>=8255&&e<=8256}},{}]},{},[15])(15)}));
 //# sourceMappingURL=exceljs.min.js.map
 </script>
-  <script src="js/config.js?v=20260701d"></script>
+  <script src="js/config.js?v=20260708b"></script>
 <script>
 /* ============================================================
    PRODUCT DATABASE — edit ONLY this array to update the catalog.
@@ -2579,27 +2579,28 @@ document.querySelectorAll('.vt').forEach(b=>b.classList.toggle('on',b.dataset.vi
             <span class="lx-badge"><span class="lx-badge-dot"></span>Secure workspace</span>
           </div>
           <h2 class="lx-rtitle">Dealer Pricelist<br>Management Platform</h2>
-          <p class="lx-rsub">One secure workspace for Logitech dealer pricing, catalogs, and exports.</p>
+          <p class="lx-rsub">Manage Logitech products, dealer pricing, categories, product images, announcements, and exports from one centralized workspace.</p>
           <div class="lx-stats">
             <div class="lx-stat"><div class="lx-stat-n">${nSku}</div><div class="lx-stat-l">Products</div></div>
             <div class="lx-stat"><div class="lx-stat-n">${nCat}</div><div class="lx-stat-l">Categories</div></div>
-            <div class="lx-stat"><div class="lx-stat-n"><span class="lx-live"></span>${new Date().toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'})}</div><div class="lx-stat-l">Last sync</div></div>
+            <div class="lx-stat"><div class="lx-stat-n">3</div><div class="lx-stat-l">Announcements</div></div>
           </div>
           <div class="lx-app">
             <div class="lx-app-top"><span class="lx-tl"></span><span class="lx-tl"></span><span class="lx-tl"></span><div class="lx-app-search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg><span>Search products, SKUs, dealers…</span></div></div>
             <div class="lx-app-body">
               <div class="lx-app-nav">
                 <div class="lx-nav-i on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"></rect><rect x="14" y="3" width="7" height="7" rx="1.5"></rect><rect x="3" y="14" width="7" height="7" rx="1.5"></rect><rect x="14" y="14" width="7" height="7" rx="1.5"></rect></svg>SKU Management</div>
-                <div class="lx-nav-i"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7l9-4 9 4v10l-9 4-9-4z"></path><path d="M3 7l9 4 9-4"></path><path d="M12 11v10"></path></svg>Inventory</div>
+                <div class="lx-nav-i"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path></svg>Category Management</div>
                 <div class="lx-nav-i"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"></rect><circle cx="9" cy="9" r="2"></circle><path d="M21 15l-5-5L5 21"></path></svg>Product Images</div>
+                <div class="lx-nav-i"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11v2a1 1 0 0 0 1 1h3l5 4V6L7 10H4a1 1 0 0 0-1 1z"></path><path d="M16 9a3 3 0 0 1 0 6"></path></svg>Announcements</div>
                 <div class="lx-nav-i"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"></path><path d="M14 3v5h5"></path></svg>PDF Export</div>
                 <div class="lx-nav-i"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line><line x1="9" y1="3" x2="9" y2="21"></line></svg>Excel Export</div>
               </div>
               <div class="lx-app-main">
-                <div class="lx-am-head"><span>Recent Products</span><span class="lx-am-tag">DEALER &middot; SPECIAL</span></div>
-                <div class="lx-rowp"><span class="lx-thumb"><svg class="lx-pi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="3" width="10" height="18" rx="5"></rect><line x1="12" y1="7" x2="12" y2="10"></line></svg></span><span class="lx-rp-name">MX Master 3S</span><span class="lx-chip lx-chip-d">₱5,250</span><span class="lx-chip lx-chip-s">₱4,910</span></div>
-                <div class="lx-rowp"><span class="lx-thumb"><svg class="lx-pi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"></rect><line x1="7" y1="14" x2="17" y2="14"></line></svg></span><span class="lx-rp-name">K250 Keyboard</span><span class="lx-chip lx-chip-d">₱895</span><span class="lx-chip lx-chip-s">₱685</span></div>
-                <div class="lx-rowp"><span class="lx-thumb"><svg class="lx-pi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 13v-1a8 8 0 0 1 16 0v1"></path><rect x="2.5" y="13" width="4" height="6" rx="1.5"></rect><rect x="17.5" y="13" width="4" height="6" rx="1.5"></rect></svg></span><span class="lx-rp-name">H390 Headset</span><span class="lx-chip lx-chip-d">₱1,499</span><span class="lx-chip lx-chip-s">₱1,140</span></div>
+                <div class="lx-am-head"><span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11v2a1 1 0 0 0 1 1h3l5 4V6L7 10H4a1 1 0 0 0-1 1z"></path><path d="M16 9a3 3 0 0 1 0 6"></path></svg>Recent Announcements</span></div>
+                <div class="lx-rowp lx-annrow"><span class="lx-anndot"></span><span class="lx-anncol"><span class="lx-ann-name">Q3 Dealer Pricelist Published</span><span class="lx-ann-time">Today · 9:15 AM</span></span></div>
+                <div class="lx-rowp lx-annrow"><span class="lx-anndot g"></span><span class="lx-anncol"><span class="lx-ann-name">New Logitech Products Added</span><span class="lx-ann-time">Yesterday</span></span></div>
+                <div class="lx-rowp lx-annrow"><span class="lx-anndot g"></span><span class="lx-anncol"><span class="lx-ann-name">July Price Update Released</span><span class="lx-ann-time">Jul 8, 2026</span></span></div>
               </div>
             </div>
           </div>
@@ -2610,10 +2611,10 @@ document.querySelectorAll('.vt').forEach(b=>b.classList.toggle('on',b.dataset.vi
     $('adX').onclick=$('adCancel').onclick=reallyClose;
     const go=()=>{if(hash($('adPass').value)===SETTINGS.passHash){authed=true;try{if($('adRemember')&&$('adRemember').checked){localStorage.setItem('logiAdminUser',($('adUser').value||'').trim());}else{localStorage.removeItem('logiAdminUser');}}catch(e){}const _pa=pendingAction;pendingAction=null;if(_pa){_pa();}else{openPanel('dashboard');}return true;}
       else{$('adAuthErr').textContent='Incorrect username or password.';$('adPass').select();return false;}};
-    const submitLogin=()=>{const b=$('adGo');if(b.classList.contains('is-loading'))return;b.classList.add('is-loading');setTimeout(()=>{if(go()!==true)b.classList.remove('is-loading');},420);};$('adGo').onclick=submitLogin;
+    const submitLogin=()=>{const b=$('adGo');if(b.classList.contains('is-loading'))return;b.classList.add('is-loading');b.disabled=true;setTimeout(()=>{if(go()!==true){b.classList.remove('is-loading');b.disabled=false;}},420);};$('adGo').onclick=submitLogin;
     $('adPass').addEventListener('keydown',e=>{if(e.key==='Enter')submitLogin();});
     $('adUser').addEventListener('keydown',e=>{if(e.key==='Enter')$('adPass').focus();});
-    const eye=$('adEye'); if(eye)eye.onclick=()=>{const p=$('adPass');p.type=(p.type==='password'?'text':'password');p.focus();};
+    const eye=$('adEye'); if(eye)eye.onclick=()=>{const p=$('adPass');p.type=(p.type==='password'?'text':'password');p.focus();};try{setTimeout(function(){var f=$(remUser?'adPass':'adUser');if(f)f.focus();},60);}catch(e){}
     /* login opens in a neutral state — no field autofocus */
   }
 
@@ -4236,5 +4237,16 @@ img,canvas,svg,video{max-width:100%}
 .ad-login .lx-signin.is-loading::after{content:"";position:absolute;width:18px;height:18px;border:2px solid rgba(255,255,255,.45);border-top-color:#fff;border-radius:50%;animation:lxspin .6s linear infinite}
 @keyframes lxspin{to{transform:rotate(360deg)}}
 .ad-login .lx-signin:focus-visible,.ad-login .lx-back:focus-visible,.ad-login .lx-eye:focus-visible,.ad-login .lx-x:focus-visible,.ad-login .lx-input:focus-visible,.ad-login .lx-remember input:focus-visible+.lx-box{outline:2px solid #00B8FC;outline-offset:2px}
+
+.ad-login .lx-app-nav{gap:2px;padding:11px 9px}
+.ad-login .lx-nav-i{padding:6px 10px}
+.ad-login .lx-am-head svg{width:14px;height:14px;color:#00B8FC;margin-right:7px;vertical-align:-3px}
+.ad-login .lx-annrow{align-items:center}
+.ad-login .lx-anndot{width:8px;height:8px;border-radius:50%;background:#00B8FC;flex:0 0 auto}
+.ad-login .lx-anndot.g{background:#CBD5E1}
+.ad-login .lx-anncol{display:flex;flex-direction:column;gap:1px;min-width:0}
+.ad-login .lx-ann-name{font-size:12.5px;font-weight:600;color:#334155;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ad-login .lx-ann-time{font-size:11px;color:#94A3B8}
+.ad-login .lx-signin[disabled]{cursor:default}
 </style>
 </body></html>
