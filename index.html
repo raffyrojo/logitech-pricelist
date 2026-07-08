@@ -2469,6 +2469,7 @@ document.querySelectorAll('.vt').forEach(b=>b.classList.toggle('on',b.dataset.vi
   async function persistActive(){try{await IDB.set('data',JSON.parse(JSON.stringify(snapshot())));}catch(e){console.warn('persist failed',e);}}
   async function persistHistory(){try{await IDB.set('history',JSON.parse(JSON.stringify(HISTORY)));}catch(e){console.warn('history persist failed',e);}}
   async function loadRemoteData(){
+    window.__NET_OK=false;
     const cfg=window.CMS_CONFIG||{}, paths=cfg.paths||{}, bust='?v='+Date.now();
     const safeCode=c=>String(c).replace(/[^A-Za-z0-9._-]/g,'_');
     const imgBase=paths.images||'images/';
@@ -2477,7 +2478,7 @@ document.querySelectorAll('.vt').forEach(b=>b.classList.toggle('on',b.dataset.vi
       if(!res.ok) throw new Error('HTTP '+res.status);
       const data=await res.json();
       if(!Array.isArray(data)||!data.length) throw new Error('empty products.json');
-      products.length=0; data.forEach(p=>products.push(p));
+      products.length=0; data.forEach(p=>products.push(p)); window.__NET_OK=true;
       Object.keys(IMAGES).forEach(k=>delete IMAGES[k]);
       products.forEach(p=>{ if(p&&p.code) IMAGES[p.code]=imgBase+safeCode(p.code)+'.webp'; });
     }catch(e){ console.warn('[CMS] products.json load failed:', e.message); }
@@ -2493,8 +2494,9 @@ document.querySelectorAll('.vt').forEach(b=>b.classList.toggle('on',b.dataset.vi
       else{
         const rev=await IDB.get('seedRev');
         const snap=await IDB.get('data');
-        if(rev===(window.__DATA_REV||SEED_REV) && snap && snap.products){ applySnapshot(snap); }
-        else { /* new build or shipped data update -> use built-in data, overwrite stale local copy */ rebuildAll(); await persistActive(); try{await IDB.set('seedRev',(window.__DATA_REV||SEED_REV));}catch(e){} }
+        if(window.__NET_OK){ /* network is source of truth: always render freshly-fetched products.json and refresh the local cache */ rebuildAll(); await persistActive(); try{await IDB.set('seedRev',(window.__DATA_REV||SEED_REV));}catch(e){} }
+        else if(rev===(window.__DATA_REV||SEED_REV) && snap && snap.products){ applySnapshot(snap); }
+        else { rebuildAll(); await persistActive(); try{await IDB.set('seedRev',(window.__DATA_REV||SEED_REV));}catch(e){} }
       }
       HISTORY=(await IDB.get('history'))||[];
     }catch(e){if(window.__SNAP__){try{applySnapshot(window.__SNAP__);}catch(_){}}console.warn('IndexedDB unavailable — using defaults',e); if(products.length){try{rebuildAll();}catch(_){}}}
