@@ -243,7 +243,7 @@
       if (bigRemoval && !window.confirm("You are about to REMOVE a large number of live products.\nAre you absolutely sure?")) return;
 
       /* 5) Send, with a timeout so the button can never hang forever. */
-      btn.textContent = "Publishing...";
+      btn.textContent = "Saving...";
       var ctrl = typeof AbortController !== "undefined" ? new AbortController() : null;
       var timer = ctrl ? setTimeout(function () { ctrl.abort(); }, PUBLISH_TIMEOUT_MS) : null;
       var res;
@@ -287,8 +287,8 @@
     var b = document.createElement("button");
     b.id = "cmsPublishBtn";
     b.type = "button";
-    b.textContent = "Publish to GitHub";
-    b.title = "Commit the current products and any new images to GitHub (updates the live site)";
+    b.textContent = "Save";
+    b.title = "Save changes to the live site (commit to GitHub)";
     b.style.cssText =
       "margin-left:auto;flex:0 0 auto;border:0;cursor:pointer;color:#fff;" +
       "background:linear-gradient(135deg,#00B8FC,#0099D9);" +
