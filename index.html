@@ -1507,7 +1507,7 @@ function buildFeatured(){
       inner=rep?`<img src="${IMAGES[rep.code]}" alt="${t.label}" loading="lazy">`:icon(t.key,'picon'); }
     return `<button class="feat${t.key===state.cat?' active':''}" data-cat="${t.key}"><span class="circle">${inner}</span><h3>${t.label}</h3></button>`;
   }).join('');
-  fg.querySelectorAll('.feat').forEach(b=>b.onclick=()=>{ if(fg.__drag)return; state.cat=b.dataset.cat;render();
+  fg.querySelectorAll('.feat').forEach(b=>b.onclick=()=>{ if(fg.__drag)return; state.cat=b.dataset.cat; state.q=''; try{const ns=document.getElementById('navSearch'); if(ns)ns.value='';}catch(e){} render();
     document.getElementById('catalog').scrollIntoView({behavior:'smooth'});});
   updateFeatArrows();
 }
