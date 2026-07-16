@@ -3764,6 +3764,30 @@ img,canvas,svg,video{max-width:100%}
     var h=getHist().filter(function(x){return x.toLowerCase()!==q.toLowerCase();});
     h.unshift(q); h=h.slice(0,MAXH); try{localStorage.setItem(HK,JSON.stringify(h));}catch(e){} }
 
+  /* v1.78.0 GLOBAL Top Searches — aggregated across ALL visitors via the CMS Worker (D1).
+     TOPCACHE is only a paint cache for instant render; the network is source of truth. */
+  var TK='logiTopCache';
+  var TOPCACHE=(function(){try{var a=JSON.parse(localStorage.getItem(TK)||'[]');return Array.isArray(a)?a:[];}catch(e){return [];}})();
+  function apiBase(){ try{ return ((window.CMS_CONFIG&&CMS_CONFIG.backendEndpoint)||'').replace(/\/+$/,''); }catch(e){ return ''; } }
+  function fetchTop(){
+    var b=apiBase(); if(!b) return Promise.resolve(TOPCACHE);
+    return fetch(b+'/top-searches?limit='+MAXR,{cache:'no-store'})
+      .then(function(r){ return r.ok?r.json():null; })
+      .then(function(j){
+        if(j&&j.ok&&Array.isArray(j.items)){
+          TOPCACHE=j.items.map(function(x){return x&&x.term;}).filter(Boolean);
+          try{localStorage.setItem(TK,JSON.stringify(TOPCACHE));}catch(e){}
+        }
+        return TOPCACHE;
+      })
+      .catch(function(){ return TOPCACHE; });
+  }
+  function isCatalogMatch(q){ try{ return lsSearch(q).length>0; }catch(e){ return false; } }
+  function trackSearch(q){
+    var b=apiBase(); if(!b) return;
+    try{ fetch(b+'/search-track',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({q:q}),keepalive:true}); }catch(e){}
+  }
+
   var CAT_ORDER=['Mice','Keyboards','Combos','Webcams','Headsets','Speakers','Mouse pad','Presentation Remotes','iPad Keyboard Cases','Tablet Keyboards','Digital Pens'];
   function G(){ return (typeof GROUPS!=='undefined'&&GROUPS)?GROUPS:[]; }
   function cats(){
@@ -3854,12 +3878,13 @@ img,canvas,svg,video{max-width:100%}
   }
 
   function renderEmpty(){
-    var hist=getHist(), cs=cats(), html='';
-    html+='<div class="ls-sec"><div class="ls-sechead"><h3 class="ls-h">Recent searches</h3>'
-      +(hist.length?'<button class="ls-clear" type="button">Clear</button>':'')+'</div>';
-    if(hist.length){ html+='<div class="ls-list">'+
-      hist.map(function(t){return '<button class="ls-item" type="button" data-q="'+escA(t)+'"><svg class="ls-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path></svg>'+esc(t)+'</button>';}).join('')+'</div>'; }
-    else { html+='<div class="ls-hint">Your recent searches will appear here. Start typing to find a product, SKU, or category.</div>'; }
+    // Global Top Searches (aggregated across all visitors). Falls back to curated
+    // category picks when the shared list is empty or the backend is unreachable.
+    var list=(TOPCACHE&&TOPCACHE.length)?TOPCACHE.slice(0,MAXR):topSearches();
+    var html='<div class="ls-sec"><div class="ls-sechead"><h3 class="ls-h">Top Searches</h3></div>';
+    if(list&&list.length){ html+='<div class="ls-list">'+
+      list.map(function(t){return '<button class="ls-item" type="button" data-q="'+escA(t)+'"><svg class="ls-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 17l6-6 4 4 8-8"></path><path d="M17 7h4v4"></path></svg>'+esc(t)+'</button>';}).join('')+'</div>'; }
+    else { html+='<div class="ls-hint">Popular searches will appear here. Start typing to find a product, SKU, or category.</div>'; }
     html+='</div>';
     results.innerHTML=html; buildNav();
   }
@@ -3880,6 +3905,7 @@ img,canvas,svg,video{max-width:100%}
   function applyQuery(q){
     q=(q||'').trim(); if(!q){ if(input)input.focus(); return; }
     pushHist(q);
+    if(isCatalogMatch(q)) trackSearch(q);   // count only real, submitted catalog searches
     try{ if(typeof state!=='undefined')state.cat='All'; }catch(e){}
     var ns=document.getElementById('navSearch');
     if(ns){ ns.value=q; ns.dispatchEvent(new Event('input',{bubbles:true})); }
@@ -3906,6 +3932,7 @@ img,canvas,svg,video{max-width:100%}
     ov.classList.add('show'); lockScroll();
     if(input)input.value='';
     renderEmpty();
+    fetchTop().then(function(){ if(ov&&ov.classList.contains('show')&&input&&!input.value.trim())renderEmpty(); });
     var tg=document.getElementById('searchToggle'); if(tg)tg.setAttribute('aria-expanded','true');
     requestAnimationFrame(function(){ ov.classList.add('open'); setTimeout(function(){ try{input.focus();}catch(e){} },60); });
   }
@@ -4038,7 +4065,7 @@ img,canvas,svg,video{max-width:100%}
 }
 </style>
 <style id="resp-v167">
-/* v1.67.0 search overlay: Recent searches as the primary list (per-user, localStorage) */
+/* v1.78.0 search overlay: Top Searches as the primary list (global, aggregated via CMS Worker) */
 .ls-sechead{display:flex;align-items:baseline;justify-content:space-between;gap:12px}
 .ls-clear{border:0;background:none;font:inherit;font-size:12.5px;font-weight:600;color:var(--muted);cursor:pointer;padding:2px 2px;border-radius:6px}
 .ls-clear:hover{color:var(--accent-d);text-decoration:underline}
