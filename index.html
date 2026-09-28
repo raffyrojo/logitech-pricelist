@@ -883,6 +883,7 @@
         <button class="hdr-btn" id="exportBtn" type="button" title="Export" aria-label="Export"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"></path></svg><span class="lbl">Export</span><svg class="car" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M6 9l6 6 6-6"></path></svg></button>
         <div class="dd-menu" id="exportMenu">
           <button data-x="xlsx" type="button">Export Excel (.xlsx)</button>
+          <button data-x="xlsxspecs" type="button">Export Excel + Specs (.xlsx)</button>
           <button data-x="pdfc" type="button">Export PDF (Catalog)</button>
           <button data-x="pdfg" type="button">Export PDF (Grouped Catalog)</button>
         </div>
@@ -2045,12 +2046,19 @@ function toast(msg,kind){
   if(kind!=='load')setTimeout(()=>{t.style.opacity='0';t.style.transition='opacity .3s';setTimeout(()=>t.remove(),320);},2600);
   return t;
 }
-function exportXLSX(){
-  /* v1.21.0 - styled workbook with embedded product images (ExcelJS) */
+function exportXLSX(withSpecs){
+  /* v1.21.0 - styled workbook with embedded product images (ExcelJS)
+     withSpecs (v1.79.0): identical to the standard Excel export, plus ONE readable
+     "Specifications" column. Still one row per SKU; blank when the product has no specs. */
   if(!window.ExcelJS){ toast('Excel engine unavailable'); return Promise.resolve(); }
   const rows=exportRows();
   if(!rows.length){ toast('Nothing to export for this view'); return Promise.resolve(); }
   const PESO='₱';
+  /* specs live on the product group (g.specs) — map them onto each SKU row by code */
+  const specByCode={};
+  if(withSpecs){ filtered().forEach(function(g){ (g.variants||[]).forEach(function(v){ specByCode[v.code]=g.specs||''; }); }); }
+  function specText(raw){ return String(raw||'').split(/\r?\n+/).map(function(s){return s.trim();})
+    .filter(Boolean).map(function(s){ return s.charAt(0)==='*'?('• '+s.replace(/^\*+\s*/,'').trim()):s; }).join('\n'); }
   /* v1.63.0: convert each product image (WebP) -> NATIVE-resolution transparent PNG (sharp); the worksheet still DISPLAYS each at 90x90 so layout/row heights are unchanged */
   const pngMap={};
   const codes=Array.from(new Set(rows.map(function(r){return r.code;}).filter(function(c){return IMAGES[c];})));
@@ -2077,10 +2085,11 @@ function exportXLSX(){
     {h:'Warranty (Years)',k:'warr',right:true},
     {h:'Material Number',k:'mat',w:18,hidden:true}
   ];
+  if(withSpecs) cols.splice(cols.length-1,0,{h:'Specifications',k:'specs',w:60,wrap:true});
   function valOf(k,r){ switch(k){case 'cat':return r.category;case 'name':return r.name;case 'color':return r.color||'';
     case 'code':return r.code;case 'chan':return r.channel||'';case 'mcq':return r.carton||'';
     case 'srp':return r.srp>0?r.srp:'';case 'dp':return r.dp>0?r.dp:'';case 'warr':return r.warranty||'';
-    case 'mat':return r.material||'';default:return '';} }
+    case 'mat':return r.material||'';case 'specs':return withSpecs?specText(specByCode[r.code]||''):'';default:return '';} }
   function autoW(c){ let m=c.h.length; rows.forEach(function(r){ const v=valOf(c.k,r); const L=(''+v).length; if(L>m)m=L; });
     return Math.min(Math.max(m+2,9),26); }
   return Promise.all(codes.map(toPNG)).then(function(){
@@ -2096,7 +2105,8 @@ function exportXLSX(){
       cell.border={bottom:{style:'thin',color:{argb:'FF0079AE'}}}; });
     rows.forEach(function(r,i){
       const row=ws.addRow({cat:r.category,name:r.name,color:r.color||'',code:r.code,chan:r.channel||'',
-        mcq:r.carton||'', srp:r.srp>0?r.srp:'', dp:r.dp>0?r.dp:'', warr:r.warranty||'', mat:r.material||''});
+        mcq:r.carton||'', srp:r.srp>0?r.srp:'', dp:r.dp>0?r.dp:'', warr:r.warranty||'', mat:r.material||'',
+        specs: withSpecs?specText(specByCode[r.code]||''):''});
       row.height=80;
       const zebra=(i%2===1);
       row.eachCell({includeEmpty:true},function(cell,colNumber){
@@ -2113,7 +2123,7 @@ function exportXLSX(){
     return wb.xlsx.writeBuffer().then(function(buf){
       const blob=new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
       const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
-      a.download='Logitech Pricelist - '+exportScope().replace(/[\\/:*?"<>|]/g,'')+' - '+fileStamp()+'.xlsx';
+      a.download='Logitech Pricelist'+(withSpecs?' (with Specs)':'')+' - '+exportScope().replace(/[\\/:*?"<>|]/g,'')+' - '+fileStamp()+'.xlsx';
       document.body.appendChild(a); a.click();
       setTimeout(function(){URL.revokeObjectURL(a.href);a.remove();},600);
     });
@@ -2263,11 +2273,12 @@ function buildDealerPDF(grouped){
 function exportPDFQuick(){ return buildDealerPDF(false); }
 function exportGrouped(){ return buildDealerPDF(true); }
 function doExport(kind){
-  const names={xlsx:'Excel (.xlsx)',pdfq:'PDF (Quick)',pdfc:'PDF (Catalog)',pdfg:'PDF (Grouped Catalog)',view:'Current view (CSV)'};
+  const names={xlsx:'Excel (.xlsx)',xlsxspecs:'Excel + Specs (.xlsx)',pdfq:'PDF (Quick)',pdfc:'PDF (Catalog)',pdfg:'PDF (Grouped Catalog)',view:'Current view (CSV)'};
   const load=toast('Preparing '+names[kind]+'…','load');
   setTimeout(()=>{ try{
     let r;
     if(kind==='xlsx')r=exportXLSX();
+    else if(kind==='xlsxspecs')r=exportXLSX(true);
     else if(kind==='pdfq')r=exportPDFQuick();
     else if(kind==='pdfc')r=exportPDF();
     else if(kind==='pdfg')r=exportGrouped();
