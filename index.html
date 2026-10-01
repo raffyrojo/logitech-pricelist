@@ -1488,10 +1488,17 @@ function buildCats(){
   const row=document.getElementById('catRow');
   if(!row)return;
   const all=[{name:'All',n:products.length}].concat(CATS.map(c=>({name:c,n:products.filter(p=>p.category===c).length})));
-  row.innerHTML=all.map(c=>`<button class="cat-pill${c.name===state.cat?' active':''}" data-cat="${c.name}">
+  let html=all.map(c=>`<button class="cat-pill${c.name===state.cat?' active':''}" data-cat="${c.name}">
     ${c.name==='All'?'<span class="ic">'+icon('_default','')+'</span>':'<span class="ic">'+icon(c.name,'')+'</span>'}
     ${c.name} <span class="count">${c.n}</span></button>`).join('');
-  row.querySelectorAll('.cat-pill').forEach(b=>b.onclick=()=>{state.cat=b.dataset.cat;render();
+  const _chg=changedVars().length;
+  if(_chg>0){
+    html=`<button class="cat-pill chg-pill${state.cat==='__chg'?' active':''}" data-cat="__chg">
+      <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 7v10M7 7l-3 3M7 7l3 3"/><path d="M17 17V7M17 17l3-3M17 17l-3-3"/></svg></span>
+      Price Changes <span class="count">${_chg}</span></button>`+html;
+  }
+  row.innerHTML=html;
+  row.querySelectorAll('.cat-pill').forEach(b=>b.onclick=()=>{state.cat=b.dataset.cat;if(b.dataset.cat==='__chg')state.q='';render();
     document.getElementById('catalog').scrollIntoView({behavior:'smooth'});});
 }
 
@@ -1535,7 +1542,7 @@ function buildGroups(){
     let g=map.get(key);
     if(!g){ g={category:p.category,name:p.name,model:p.model,desc:p.desc,specs:p.specs,sysreq:p.sysreq,
       dim:p.dim,warranty:p.warranty,channel:p.channel,variants:[],sel:0}; map.set(key,g); order.push(g); }
-    g.variants.push({idx,code:p.code,color:p.color,srp:p.srp,dp:p.dp,upc:p.upc,material:p.material,carton:p.carton});
+    g.variants.push({idx,code:p.code,color:p.color,srp:p.srp,dp:p.dp,upc:p.upc,material:p.material,carton:p.carton,pSrp:p.pSrp,pDp:p.pDp});
   });
   const rank=c=>{c=(c||'').toLowerCase();
     if(/graphite|black|charcoal|kohle/.test(c))return 0;
@@ -1548,9 +1555,14 @@ function buildGroups(){
       return rank(a.color)-rank(b.color);
     });
     g.gi=gi;
+    g.changed=grpChanged(g);
   });
   GROUPS=order;
 }
+/* ---------- price-change helpers (read-only; mirror admin trackPrice fields) ---------- */
+function varChanged(v){ return (v.pSrp!=null && v.pSrp!==v.srp) || (v.pDp!=null && v.pDp!==v.dp); }
+function grpChanged(g){ return (g.variants||[]).some(varChanged); }
+function changedVars(){ const out=[]; GROUPS.forEach(g=>g.variants.forEach(v=>{ if(varChanged(v)) out.push({g,v}); })); return out; }
 if(products.length){buildGroups();}
 const curVar=g=>g.variants[g.sel]||g.variants[0];
 function cardMedia(v,g){
@@ -1574,7 +1586,8 @@ function clrHTML(g){
 /* ---------- filtering + sorting ---------- */
 function filtered(){
   let list=GROUPS.slice();
-  if(state.cat!=='All') list=list.filter(g=>g.category===state.cat);
+  if(state.cat==='__chg') list=list.filter(grpChanged);
+  else if(state.cat!=='All') list=list.filter(g=>g.category===state.cat);
   if(state.q){
     const terms=state.q.toLowerCase().split(/\s+/).filter(Boolean);
     list=list.filter(g=>{
@@ -1616,14 +1629,16 @@ const SHOT_ROW_HTML='<button class="shot rowshot" type="button" title="Screensho
 function render(){
   buildCats(); syncFeatured();
   const list=filtered();
-  const skus=viewSkuCount(list);
+  const isChg=(state.cat==='__chg');
+  const skus=isChg?changedVars().length:viewSkuCount(list);
   document.getElementById('resCount').textContent=list.length;
   {const _e=document.getElementById('skuTot'); if(_e)_e.innerHTML='<span class="bp">•</span> '+skus+' SKUs';}
   {const _n=document.getElementById('navCount'); if(_n)_n.textContent=skus+' SKUs';}
-  document.getElementById('catTitle').textContent=state.cat==='All'?'All products':state.cat;
+  document.getElementById('catTitle').textContent=state.cat==='All'?'All products':(isChg?'Price Changes':state.cat);
   document.getElementById('catSub').textContent=state.cat==='All'
-    ?'The complete Logitech price list.':list.length+' '+state.cat.toLowerCase()+' in the range.';
+    ?'The complete Logitech price list.':(isChg?(skus+' SKU'+(skus===1?'':'s')+' with a recorded price change — previous → current'):(list.length+' '+state.cat.toLowerCase()+' in the range.'));
   const grid=document.getElementById('grid'), page=document.getElementById('tablePage');
+  if(isChg){ document.body.classList.remove('view-table'); page.hidden=true; grid.hidden=false; renderChangesView(grid); return; }
   document.body.classList.toggle('view-table',state.view==='table');
   if(state.view==='table'){ grid.hidden=true; page.hidden=false; renderTable(); return; }
   page.hidden=true; grid.hidden=false;
@@ -1631,7 +1646,7 @@ function render(){
   grid.innerHTML=list.map(g=>{
     const v=curVar(g);
     return '<article class="card" data-gi="'+g.gi+'">'
-      +'<div class="thumb"><span class="chan">'+escH(g.channel||'Channel')+'</span><div class="media">'+cardMedia(v,g)+'</div>'+SHOT_HTML+'</div>'
+      +'<div class="thumb"><span class="chan">'+escH(g.channel||'Channel')+'</span>'+(g.changed?'<span class="pc-flag" title="Recorded price change">↕ Price change</span>':'')+'<div class="media">'+cardMedia(v,g)+'</div>'+SHOT_HTML+'</div>'
       +swatchRow(g)
       +'<div class="body">'
         +'<div class="cat">'+hl(g.category)+'</div>'
@@ -1658,6 +1673,32 @@ function render(){
     {const _sb=c.querySelector('.shot'); if(_sb)_sb.addEventListener('click',e=>{e.stopPropagation();screenshotSKU(gi);});}
     c.addEventListener('click',()=>openModal(gi));
   });
+}
+/* ===== Price Changes before/after view (v1.81.0) ===== */
+function pcNum(n){ return (n>0)? peso(n) : '—'; }
+function pcArrow(prev,cur){ if(prev==null||prev===cur)return ''; return cur>prev?'<span class="pc-up" title="Increase">▲</span>':'<span class="pc-dn" title="Decrease">▼</span>'; }
+function renderChangesView(grid){
+  const items=changedVars();
+  if(!items.length){ grid.innerHTML=EMPTY_HTML; return; }
+  items.sort((a,b)=> (a.g.name||'').localeCompare(b.g.name||'') || (a.v.code||'').localeCompare(b.v.code||''));
+  const rows=items.map(({g,v})=>{
+    const img=IMAGES[v.code];
+    const sChg=(v.pSrp!=null&&v.pSrp!==v.srp), dChg=(v.pDp!=null&&v.pDp!==v.dp);
+    const which=(sChg&&dChg)?'SRP + DP':(sChg?'SRP':'DP');
+    return '<tr>'
+      +'<td class="c-img"><span class="dthumb">'+(img?'<img src="'+img+'" alt="">':icon(g.category,''))+'</span></td>'
+      +'<td class="mono code">'+escH(v.code)+'</td>'
+      +'<td class="pc-pn"><b>'+escH(g.name)+'</b>'+(v.color?'<span class="pc-clr"> · '+escH(v.color)+'</span>':'')+'<span class="pc-cat">'+escH(g.category)+'</span></td>'
+      +'<td class="num'+(sChg?' pc-was':'')+'">'+pcNum(sChg?v.pSrp:v.srp)+'</td>'
+      +'<td class="num'+(sChg?' pc-now':'')+'">'+pcNum(v.srp)+(sChg?' '+pcArrow(v.pSrp,v.srp):'')+'</td>'
+      +'<td class="num'+(dChg?' pc-was':'')+'">'+pcNum(dChg?v.pDp:v.dp)+'</td>'
+      +'<td class="num'+(dChg?' pc-now':'')+'">'+pcNum(v.dp)+(dChg?' '+pcArrow(v.pDp,v.dp):'')+'</td>'
+      +'<td><span class="pc-badge">'+which+'</span></td>'
+      +'</tr>';
+  }).join('');
+  grid.innerHTML='<div class="pc-wrap"><table class="pc-tbl"><thead><tr>'
+    +'<th></th><th>Part Number</th><th>Product</th><th class="num">Previous SRP</th><th class="num">Current SRP</th><th class="num">Previous DP</th><th class="num">Current DP</th><th>Price Change</th>'
+    +'</tr></thead><tbody>'+rows+'</tbody></table></div>';
 }
 /* ===== full-width Table (data) view — v1.9.1 ===== */
 const DCOLS=[
@@ -1689,7 +1730,7 @@ function dRowHTML(r){
   return '<tr data-gi="'+g.gi+'" data-vi="'+r.vi+'">'
     +'<td class="c-img"><span class="dthumb">'+(img?'<img src="'+img+'" alt="">':icon(g.category,''))+'</span></td>'
     +'<td class="cat" data-label="Category">'+hl(g.category)+'</td>'
-    +'<td class="pn" data-label="Product"><div class="pnwrap"><span>'+hl(g.name)+'</span>'+SHOT_ROW_HTML+'</div></td>'
+    +'<td class="pn" data-label="Product"><div class="pnwrap"><span>'+hl(g.name)+'</span>'+(varChanged(v)?'<span class="pc-dot" title="Recorded price change">↕ Price change</span>':'')+SHOT_ROW_HTML+'</div></td>'
     +'<td class="mono code" data-label="Item Code">'+hl(v.code)+'</td>'
     +'<td class="c-color" data-label="Color"><span class="onesw" style="background:'+swatch(v.color)+'"></span><span class="cname">'+escH(v.color||'—')+'</span></td>'
     +'<td class="mono" data-label="UPC / EAN">'+hl(v.upc||'—')+'</td>'
@@ -2822,7 +2863,8 @@ document.querySelectorAll('.vt').forEach(b=>b.classList.toggle('on',b.dataset.vi
     bulkPlan.forEach(r=>{
       if(r.status==='No Match'){noMatch++;return;}
       if(r.status==='Invalid'){invalid++;return;}
-      if(r.changed && r.pidx!=null){ products[r.pidx].srp=r.newSRP; products[r.pidx].dp=r.newDP; updated++; }
+      if(r.changed && r.pidx!=null){ const p=products[r.pidx]; const oS=p.srp,oD=p.dp,oPS=p.pSrp,oPD=p.pDp;
+        p.srp=r.newSRP; p.dp=r.newDP; trackPrice(p,oS,oD,oPS,oPD); updated++; }
       else unchanged++;
     });
     if(updated>0){ markDirty(); rebuildAll(); }
@@ -2868,6 +2910,50 @@ document.querySelectorAll('.vt').forEach(b=>b.classList.toggle('on',b.dataset.vi
     XLSX.writeFile(wb,'Logitech Bulk Price Update Template - '+stamp+'.xlsx');
   }
 
+  /* ================= PRICE CHANGES (admin review, v1.81.0) =================
+     Reviews all records with a recorded price change (pSrp/pDp set by trackPrice).
+     Draft-only until published. Reset = set current price as the new baseline. */
+  let pcQuery='';
+  function pcMoney(n){ return (n>0)?'₱'+Number(n).toLocaleString('en-PH'):'—'; }
+  function pcArw(prev,cur){ if(prev==null||prev===cur)return ''; return cur>prev?'<span style="color:#DC2626">▲</span>':'<span style="color:#059669">▼</span>'; }
+  function pcHasChange(p){ return (p.pSrp!=null&&p.pSrp!==p.srp)||(p.pDp!=null&&p.pDp!==p.dp); }
+  function renderPriceChanges(){
+    const all=products.filter(pcHasChange);
+    const q=pcQuery.trim().toLowerCase();
+    const list=all.filter(p=> !q || (''+p.code).toLowerCase().indexOf(q)>=0 || (''+p.name).toLowerCase().indexOf(q)>=0);
+    const rows=list.map(p=>{
+      const sChg=(p.pSrp!=null&&p.pSrp!==p.srp), dChg=(p.pDp!=null&&p.pDp!==p.dp);
+      const which=(sChg&&dChg)?'SRP + DP':(sChg?'SRP':'DP');
+      return `<tr>
+        <td class="mono">${esc(p.code)}</td>
+        <td><b>${esc(p.name)}</b>${p.color?' · '+esc(p.color):''}<div class="ad-note" style="margin:2px 0 0">${esc(p.category)}</div></td>
+        <td class="num ${sChg?'pcx-was':''}">${pcMoney(sChg?p.pSrp:p.srp)}</td>
+        <td class="num ${sChg?'pcx-now':''}">${pcMoney(p.srp)} ${sChg?pcArw(p.pSrp,p.srp):''}</td>
+        <td class="num ${dChg?'pcx-was':''}">${pcMoney(dChg?p.pDp:p.dp)}</td>
+        <td class="num ${dChg?'pcx-now':''}">${pcMoney(p.dp)} ${dChg?pcArw(p.pDp,p.dp):''}</td>
+        <td><span class="pc-badge">${which}</span></td>
+        <td style="text-align:right"><button class="btn" style="padding:4px 10px;font-size:12px" data-reset="${esc(p.code)}">Reset</button></td>
+      </tr>`;
+    }).join('');
+    $('adContent').innerHTML=`
+      <div class="sx-pagehead"><div><h3>Price Changes</h3><p>${all.length} SKU${all.length===1?'':'s'} with a recorded price change in this draft. Shows previous → current for SRP and DP. These appear on the live pricelist only after you Publish.</p></div></div>
+      <div class="sx-card">
+        <div class="ad-toolbar" style="gap:10px;align-items:center">
+          <div class="sx-search" style="flex:1;max-width:440px">${ICN.search}<input id="pcSearch" placeholder="Search by Part Number or Product Name…" value="${esc(pcQuery)}"></div>
+          <button class="btn" id="pcClear"${all.length?'':' disabled'}>Reset all</button>
+        </div>
+        <div class="dt-wrap" style="margin-top:12px;max-height:60vh;overflow:auto"><table class="dt pcx-tbl"><thead><tr>
+          <th>Part Number</th><th>Product</th><th class="num">Prev SRP</th><th class="num">Cur SRP</th><th class="num">Prev DP</th><th class="num">Cur DP</th><th>Changed</th><th></th></tr></thead>
+          <tbody>${rows||`<tr><td colspan="8" class="ad-note" style="padding:14px">${all.length?'No matches for your search.':'No recorded price changes yet. Manual price edits and Bulk Price Update changes that actually move SRP or DP will appear here.'}</td></tr>`}</tbody></table></div>
+        <p class="ad-note" style="margin-top:10px"><b>Reset</b> sets the current price as the new baseline and clears the “changed” flag for that SKU — use it after a pricing round is published. Resetting marks the draft dirty; Save / Publish to make it live.</p>
+      </div>`;
+    const si=$('pcSearch'); if(si){ si.addEventListener('input',e=>{ pcQuery=e.target.value; const pos=si.selectionStart; renderPriceChanges(); const n=$('pcSearch'); if(n){ n.focus(); try{n.setSelectionRange(pos,pos);}catch(_){ } } }); }
+    $('adContent').querySelectorAll('[data-reset]').forEach(b=>b.onclick=()=>{ const code=b.getAttribute('data-reset'); const p=products.find(x=>x.code===code);
+      if(p){ delete p.pSrp; delete p.pDp; markDirty(); rebuildAll(); renderPriceChanges(); } });
+    const ca=$('pcClear'); if(ca && all.length) ca.onclick=()=>{ if(!confirm('Reset ALL '+all.length+' recorded price change(s)? Current prices become the new baseline.'))return;
+      products.forEach(p=>{ delete p.pSrp; delete p.pDp; }); markDirty(); rebuildAll(); renderPriceChanges(); };
+  }
+
   /* ---------- PANEL SHELL (SaaS, v1.22.0) ---------- */
   function openPanel(tab){
     adModal.className='ad-modal ad-panel ad-saas';
@@ -2881,6 +2967,7 @@ document.querySelectorAll('.vt').forEach(b=>b.classList.toggle('on',b.dataset.vi
         ${navItem('pricelists','Price Lists','list')}
         ${navItem('importexport','Import / Export','imp')}
         ${navItem('bulkprice','Bulk Price Update','tag')}
+        ${navItem('pricechanges','Price Changes','clock')}
         <div class="sx-grp">Content</div>
         ${navItem('popups','Popup Ads','bell')}
         <div class="sx-grp">System</div>
@@ -2925,6 +3012,7 @@ document.querySelectorAll('.vt').forEach(b=>b.classList.toggle('on',b.dataset.vi
     else if(t==='pricelists')renderPriceLists();
     else if(t==='importexport')renderImportExport();
     else if(t==='bulkprice')renderBulkPrice();
+    else if(t==='pricechanges')renderPriceChanges();
     else if(t==='popups')renderPopupList();
     else if(t==='versions')renderVersions();
     else if(t==='settings')renderSettings();
@@ -3132,15 +3220,34 @@ document.querySelectorAll('.vt').forEach(b=>b.classList.toggle('on',b.dataset.vi
           <div style="margin-top:8px;font-size:18px;font-weight:800">${num(v.srp)>0?peso(num(v.srp)):'On request'} ${num(v.dp)>0?`<span style="font-size:12px;color:var(--accent-d);background:var(--accent-soft);padding:2px 8px;border-radius:6px;font-weight:700">DP ${peso(num(v.dp))}</span>`:''}</div>
         </div></div></div>`;
   }
+  /* shared price-change tracking — used by BOTH manual SKU edits and Bulk Price Update.
+     Stores the baseline SRP/DP (pSrp / pDp) on the record the first time a price moves
+     away from it, keeps that baseline across further edits, and clears it on revert.
+     A record "has a recorded price change" when pSrp or pDp is present. These fields
+     live on the product (so they publish with the draft and are draft-only until then). */
+  function trackPrice(rec, oldSrp, oldDp, oldPSrp, oldPDp){
+    let pS = (oldPSrp!=null?oldPSrp:undefined);
+    if(num(rec.srp)!==num(oldSrp)){ const base=(oldPSrp!=null)?oldPSrp:num(oldSrp);
+      pS = (num(rec.srp)===base)?undefined:base; }
+    if(pS==null) delete rec.pSrp; else rec.pSrp=pS;
+    let pD = (oldPDp!=null?oldPDp:undefined);
+    if(num(rec.dp)!==num(oldDp)){ const base=(oldPDp!=null)?oldPDp:num(oldDp);
+      pD = (num(rec.dp)===base)?undefined:base; }
+    if(pD==null) delete rec.pDp; else rec.pDp=pD;
+  }
   function saveSku(){
     pullDraft();const errs=validateDraft();
     if(errs.length){$('skuErr').innerHTML=errs.join('<br>');$('previewWrap').innerHTML='';return;}
+    /* snapshot pre-edit prices by code so an edit that keeps the same code tracks its change */
+    const _oldPx=new Map(); products.forEach(p=>_oldPx.set(p.code,{srp:p.srp,dp:p.dp,pSrp:p.pSrp,pDp:p.pDp}));
     if(draft.orig){const oc=draft.orig.cat,on=draft.orig.nm;
       for(let i=products.length-1;i>=0;i--)if(products[i].category===oc&&products[i].name===on)products.splice(i,1);}
     draft.variants.forEach(v=>{const code=v.code.trim();
-      products.push({code,name:draft.name.trim(),category:draft.category.trim(),desc:draft.desc,color:v.color.trim(),
+      const rec={code,name:draft.name.trim(),category:draft.category.trim(),desc:draft.desc,color:v.color.trim(),
         srp:num(v.srp),dp:num(v.dp),carton:draft.carton,upc:(v.upc||'').trim(),material:(v.material||'').trim(),
-        channel:draft.channel,specs:draft.specs,sysreq:draft.sysreq,dim:draft.dim,warranty:draft.warranty});
+        channel:draft.channel,specs:draft.specs,sysreq:draft.sysreq,dim:draft.dim,warranty:draft.warranty};
+      const o=_oldPx.get(code); if(o) trackPrice(rec,o.srp,o.dp,o.pSrp,o.pDp);
+      products.push(rec);
       if(v.img)IMAGES[code]=v.img;});
     markDirty(); rebuildAll(); closeDrawer(); renderSkuList();
   }
@@ -4463,5 +4570,36 @@ img,canvas,svg,video{max-width:100%}
 .bp-tag.no{background:#9CA3AF;color:#fff}
 .bp-tag.bad{background:#EF4444;color:#fff}
 .bp-reason{display:inline-block;margin-left:6px;font-size:11px;color:#991B1B}
+</style>
+<style id="pricechanges-css">
+/* v1.81.0 Price Changes — public badge + before/after view */
+.cat-pill.chg-pill{color:#92400E;border-color:#FCD34D;background:#FFFBEB}
+.cat-pill.chg-pill.active{background:#F59E0B;border-color:#F59E0B;color:#fff}
+.cat-pill.chg-pill .count{background:rgba(146,64,14,.12);color:inherit}
+.thumb{position:relative}
+.pc-flag{position:absolute;left:10px;bottom:10px;z-index:2;display:inline-flex;align-items:center;gap:3px;font-size:10.5px;font-weight:700;color:#92400E;background:#FEF3C7;border:1px solid #FCD34D;padding:2px 7px;border-radius:999px;line-height:1.35;box-shadow:0 1px 2px rgba(0,0,0,.06)}
+.pc-dot{display:inline-flex;align-items:center;gap:3px;margin-left:8px;font-size:10.5px;font-weight:700;color:#92400E;background:#FEF3C7;border:1px solid #FCD34D;padding:1px 7px;border-radius:999px;vertical-align:middle;white-space:nowrap}
+.pc-wrap{overflow:auto;border:1px solid #E5E7EB;border-radius:14px;background:#fff;margin-top:4px}
+.pc-tbl{width:100%;border-collapse:collapse;font-size:14px}
+.pc-tbl thead th{position:sticky;top:0;background:#F8FAFC;text-align:left;font-weight:700;color:#334155;font-size:11.5px;letter-spacing:.02em;text-transform:uppercase;padding:11px 14px;border-bottom:1px solid #E5E7EB;white-space:nowrap}
+.pc-tbl thead th.num{text-align:right}
+.pc-tbl td{padding:10px 14px;border-bottom:1px solid #F1F5F9;vertical-align:middle}
+.pc-tbl td.num{text-align:right;white-space:nowrap}
+.pc-tbl tbody tr:hover td{background:#FAFBFC}
+.pc-tbl .c-img{width:52px}
+.pc-tbl .dthumb{display:inline-flex;width:40px;height:40px;align-items:center;justify-content:center;background:#F4F6F8;border-radius:8px;overflow:hidden}
+.pc-tbl .dthumb img{max-width:100%;max-height:100%}
+.pc-tbl .code{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12.5px;color:#475569}
+.pc-tbl .pc-pn b{color:#0b1320}
+.pc-tbl .pc-clr{color:#64748B;font-weight:500}
+.pc-tbl .pc-cat{display:block;font-size:11.5px;color:#94A3B8}
+.pc-tbl .pc-was{color:#94A3B8;text-decoration:line-through}
+.pc-tbl .pc-now{font-weight:700;color:#0b1320}
+.pc-tbl .pc-up{color:#DC2626;margin-left:4px;font-size:11px}
+.pc-tbl .pc-dn{color:#059669;margin-left:4px;font-size:11px}
+.pc-tbl .pc-badge{display:inline-block;font-size:11px;font-weight:700;padding:2px 9px;border-radius:999px;background:#FEF3C7;color:#92400E;white-space:nowrap}
+.pcx-tbl .pcx-was{color:#94A3B8;text-decoration:line-through}
+.pcx-tbl .pcx-now{font-weight:700;color:#0b1320}
+.pc-badge{display:inline-block;font-size:11px;font-weight:700;padding:2px 9px;border-radius:999px;background:#FEF3C7;color:#92400E;white-space:nowrap}
 </style>
 </body></html>
