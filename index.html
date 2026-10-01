@@ -2710,6 +2710,164 @@ document.querySelectorAll('.vt').forEach(b=>b.classList.toggle('on',b.dataset.vi
     $('ieImp').onclick=()=>$('skuImpFile').click(); $('skuImpFile').onchange=importSkus; $('ieExp').onclick=exportSkusMenu;
   }
 
+  /* ================= BULK PRICE UPDATE (v1.80.0) =================
+     Price-only bulk editor. Matches uploaded rows to the draft by Part Number
+     (Item Code) and updates ONLY srp/dp — never name, category, specs, image,
+     colour, warranty or MCQ. Preview first; nothing applies until "Apply Price
+     Updates". Applies to the draft (markDirty) only — never publishes. Rules:
+     blank price cell = keep current; DP >= SRP (both priced) = Invalid + blocked. */
+  let bulkPlan=null;
+  function bpMoney(n){ return (n>0)?'₱'+Number(n).toLocaleString('en-PH'):'—'; }
+  function bpPriceCell(v){
+    const raw=(''+(v==null?'':v)).trim();
+    if(raw==='') return {blank:true};
+    const n=parseFloat(raw.replace(/[, ₱]/g,''));
+    if(!isFinite(n)||n<=0) return {bad:true};
+    return {val:Math.round(n*100)/100};
+  }
+  function renderBulkPrice(){
+    bulkPlan=null;
+    $('adContent').innerHTML=`
+      <div class="sx-pagehead"><div><h3>Bulk Price Update</h3><p>Update SRP / DP for many SKUs from one Excel file — matched by Part Number. Preview first; changes apply to your draft only (nothing is published).</p></div></div>
+      <div class="charts">
+        <div class="sx-card"><div class="chart-h">1 &middot; Get the template</div><p class="ad-note">Downloads an Excel pre-filled with every SKU and its current SRP &amp; DP. Change only the prices you want; leave a cell as-is (or blank) to keep the current value. Matching is by Part Number only.</p>
+          <div style="margin-top:14px"><button class="btn" id="bpTpl">⭳ Download Template</button></div></div>
+        <div class="sx-card"><div class="chart-h">2 &middot; Upload &amp; preview</div><p class="ad-note">Upload your edited .xlsx / .csv. Only SRP &amp; DP change — name, category, specs, image, colour, warranty and MCQ are never touched.</p>
+          <div style="margin-top:14px"><button class="btn primary" id="bpImp">⭱ Choose Excel / CSV…</button><input type="file" id="bpFile" accept=".xlsx,.xls,.csv" style="display:none"></div></div>
+      </div>
+      <div id="bpArea"></div>`;
+    $('bpTpl').onclick=downloadBulkTemplate;
+    $('bpImp').onclick=()=>$('bpFile').click();
+    $('bpFile').onchange=bulkOnFile;
+  }
+  function bulkOnFile(e){
+    const file=e.target.files[0]; if(!file)return;
+    const r=new FileReader();
+    r.onload=()=>{ let rows;
+      try{const wb=XLSX.read(r.result,{type:'array'});rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{defval:''});}
+      catch(err){alert('Could not read that file. Use an .xlsx or .csv in the template format.');return;}
+      e.target.value='';
+      buildBulkPreview(rows);
+    };
+    r.readAsArrayBuffer(file);
+  }
+  function buildBulkPreview(rows){
+    const idx=new Map(); products.forEach((p,i)=>idx.set((''+p.code).trim().toLowerCase(),i));
+    const plan=[]; let willChange=0, unchanged=0, noMatch=0, invalid=0;
+    (rows||[]).forEach(raw=>{
+      const m=lc(raw);
+      const code=(''+pick(m,'part number','part no','part no.','item code','code','sku')).trim();
+      const nameFile=(''+pick(m,'product name','name','product')).trim();
+      const sCell=bpPriceCell(pick(m,'new srp','srp','srp (php)','srp(php)'));
+      const dCell=bpPriceCell(pick(m,'new dp','dp','dealer price','dealer price (php)','dealer price(php)'));
+      if(!code && sCell.blank && dCell.blank && !nameFile) return;           /* ignore fully-empty rows */
+      const row={code, nameFile};
+      if(!code){ row.status='Invalid'; row.reason='Missing Part Number'; invalid++; plan.push(row); return; }
+      const i=idx.get(code.toLowerCase());
+      if(i==null){ row.status='No Match'; row.newSRP=(sCell.val!=null?sCell.val:null); row.newDP=(dCell.val!=null?dCell.val:null); noMatch++; plan.push(row); return; }
+      const p=products[i];
+      row.pidx=i; row.name=p.name; row.curSRP=p.srp||0; row.curDP=p.dp||0;
+      if(sCell.bad || dCell.bad){ row.status='Invalid'; row.reason='Price is not a valid number'; invalid++; plan.push(row); return; }
+      const newSRP = sCell.blank ? (p.srp||0) : sCell.val;
+      const newDP  = dCell.blank ? (p.dp||0)  : dCell.val;
+      if(newSRP>0 && newDP>0 && newDP>=newSRP){ row.status='Invalid'; row.reason='DP ≥ SRP (channel)'; row.newSRP=newSRP; row.newDP=newDP; invalid++; plan.push(row); return; }
+      const changed=(newSRP!==(p.srp||0))||(newDP!==(p.dp||0));
+      row.status='Matched'; row.newSRP=newSRP; row.newDP=newDP; row.changed=changed;
+      if(changed)willChange++; else unchanged++;
+      plan.push(row);
+    });
+    bulkPlan=plan;
+    renderBulkPreviewTable({willChange,unchanged,noMatch,invalid});
+  }
+  function renderBulkPreviewTable(c){
+    const rowsHTML=bulkPlan.map(r=>{
+      const st=r.status;
+      const cls = st==='Matched'?(r.changed?'bp-chg':'bp-same') : (st==='No Match'?'bp-no':'bp-bad');
+      const badge = st==='Matched'?(r.changed?'<span class="bp-tag chg">Change</span>':'<span class="bp-tag same">No change</span>')
+                   : (st==='No Match'?'<span class="bp-tag no">No Match</span>':'<span class="bp-tag bad">Invalid</span>');
+      const reason = r.reason?`<span class="bp-reason">${esc(r.reason)}</span>`:'';
+      const nm = esc(r.name||r.nameFile||'');
+      const sChg = (st==='Matched'&&r.changed&&r.newSRP!==r.curSRP);
+      const dChg = (st==='Matched'&&r.changed&&r.newDP!==r.curDP);
+      const curSRP = (st==='No Match')?'—':bpMoney(r.curSRP);
+      const curDP  = (st==='No Match')?'—':bpMoney(r.curDP);
+      const newSRP = (r.newSRP!=null)? (sChg?`<b>${bpMoney(r.newSRP)}</b>`:bpMoney(r.newSRP)) : '—';
+      const newDP  = (r.newDP!=null)?  (dChg?`<b>${bpMoney(r.newDP)}</b>`:bpMoney(r.newDP))  : '—';
+      return `<tr class="${cls}"><td>${esc(r.code||'—')}</td><td>${nm||'—'}</td><td class="num">${curSRP}</td><td class="num">${newSRP}</td><td class="num">${curDP}</td><td class="num">${newDP}</td><td>${badge}${reason}</td></tr>`;
+    }).join('');
+    $('bpArea').innerHTML=`
+      <div class="sx-card" style="margin-top:16px">
+        <div class="ad-toolbar"><b style="flex:1">Preview — ${bulkPlan.length} row(s)</b></div>
+        <div class="imp-cards">
+          <div class="imp-card upd"><b>${c.willChange}</b><span>Will change</span></div>
+          <div class="imp-card"><b>${c.unchanged}</b><span>Matched · no change</span></div>
+          <div class="imp-card skip"><b>${c.noMatch}</b><span>No match</span></div>
+          <div class="imp-card fail"><b>${c.invalid}</b><span>Invalid</span></div>
+        </div>
+        <div class="dt-wrap" style="margin-top:12px;max-height:50vh;overflow:auto"><table class="dt bp-tbl"><thead><tr>
+          <th>Part Number</th><th>Product Name</th><th class="num">Current SRP</th><th class="num">New SRP</th><th class="num">Current DP</th><th class="num">New DP</th><th>Status</th></tr></thead>
+          <tbody>${rowsHTML||'<tr><td colspan="7" class="ad-note" style="padding:14px">No rows found in that file.</td></tr>'}</tbody></table></div>
+        <div class="ad-toolbar" style="margin-top:14px;justify-content:flex-end;gap:10px">
+          <button class="btn" id="bpCancel">Cancel</button>
+          <button class="btn primary" id="bpApply"${c.willChange?'':' disabled'}>Apply Price Updates${c.willChange?' ('+c.willChange+')':''}</button>
+        </div>
+        <p class="ad-note" style="margin-top:8px">Nothing is applied until you click <b>Apply Price Updates</b>. Changes go to your draft only — use your usual <b>Save</b> / <b>Publish</b> afterwards.</p>
+      </div>`;
+    $('bpCancel').onclick=()=>{bulkPlan=null;$('bpArea').innerHTML='';};
+    const ap=$('bpApply'); if(ap && c.willChange) ap.onclick=applyBulk;
+  }
+  function applyBulk(){
+    if(!bulkPlan)return;
+    let updated=0,unchanged=0,noMatch=0,invalid=0;
+    bulkPlan.forEach(r=>{
+      if(r.status==='No Match'){noMatch++;return;}
+      if(r.status==='Invalid'){invalid++;return;}
+      if(r.changed && r.pidx!=null){ products[r.pidx].srp=r.newSRP; products[r.pidx].dp=r.newDP; updated++; }
+      else unchanged++;
+    });
+    if(updated>0){ markDirty(); rebuildAll(); }
+    renderBulkApplied({updated,unchanged,noMatch,invalid});
+    bulkPlan=null;
+  }
+  function renderBulkApplied(s){
+    $('bpArea').innerHTML=`
+      <div class="sx-card" style="margin-top:16px">
+        <div class="ad-toolbar"><b style="flex:1">Price update applied to draft</b></div>
+        <div class="imp-cards">
+          <div class="imp-card upd"><b>${s.updated}</b><span>Updated</span></div>
+          <div class="imp-card"><b>${s.unchanged}</b><span>Unchanged</span></div>
+          <div class="imp-card skip"><b>${s.noMatch}</b><span>Unmatched</span></div>
+          <div class="imp-card fail"><b>${s.invalid}</b><span>Invalid</span></div>
+        </div>
+        <p class="ad-note" style="margin-top:12px">${s.updated>0?('✓ '+s.updated+' SKU price(s) updated in your draft. '):''}These changes are <b>not published yet</b> — use <b>Save</b> / <b>Publish</b> to push them live. Other product info (name, category, specs, image, colour, warranty, MCQ) was not changed.</p>
+        <div class="ad-toolbar" style="margin-top:6px;justify-content:flex-end"><button class="btn" id="bpDone">Done</button></div>
+      </div>`;
+    $('bpDone').onclick=renderBulkPrice;
+  }
+  function downloadBulkTemplate(){
+    const header=['Part Number','Product Name','SRP','DP'];
+    const data=products.map(p=>({'Part Number':p.code,'Product Name':p.name,'SRP':(p.srp>0?p.srp:''),'DP':(p.dp>0?p.dp:'')}));
+    const ws=XLSX.utils.json_to_sheet(data,{header});
+    ws['!cols']=[{wch:16},{wch:46},{wch:12},{wch:12}];
+    const info=XLSX.utils.aoa_to_sheet([
+      ['Logitech Pricelist — Bulk Price Update template'],
+      [''],
+      ['How to use'],
+      ['1. Edit SRP and/or DP for the SKUs you want to change.'],
+      ['2. Leave a price cell unchanged (or blank) to keep the current value.'],
+      ['3. Matching is by Part Number only. Product Name is for your reference and is ignored.'],
+      ['4. In Admin → Bulk Price Update, upload this file, review the preview, then Apply.'],
+      ['5. Dealer Price must stay below SRP. Rows with DP ≥ SRP are flagged Invalid and skipped.'],
+      ['6. Applying updates your draft only — use Save / Publish to push it live.']
+    ]);
+    info['!cols']=[{wch:72}];
+    const wb=XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb,ws,'Price Update');
+    XLSX.utils.book_append_sheet(wb,info,'How to use');
+    const d=new Date(),p=n=>(''+n).padStart(2,'0');const stamp=d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate());
+    XLSX.writeFile(wb,'Logitech Bulk Price Update Template - '+stamp+'.xlsx');
+  }
+
   /* ---------- PANEL SHELL (SaaS, v1.22.0) ---------- */
   function openPanel(tab){
     adModal.className='ad-modal ad-panel ad-saas';
@@ -2722,6 +2880,7 @@ document.querySelectorAll('.vt').forEach(b=>b.classList.toggle('on',b.dataset.vi
         ${navItem('categories','Categories','tag')}
         ${navItem('pricelists','Price Lists','list')}
         ${navItem('importexport','Import / Export','imp')}
+        ${navItem('bulkprice','Bulk Price Update','tag')}
         <div class="sx-grp">Content</div>
         ${navItem('popups','Popup Ads','bell')}
         <div class="sx-grp">System</div>
@@ -2765,6 +2924,7 @@ document.querySelectorAll('.vt').forEach(b=>b.classList.toggle('on',b.dataset.vi
     else if(t==='categories')renderCategories();
     else if(t==='pricelists')renderPriceLists();
     else if(t==='importexport')renderImportExport();
+    else if(t==='bulkprice')renderBulkPrice();
     else if(t==='popups')renderPopupList();
     else if(t==='versions')renderVersions();
     else if(t==='settings')renderSettings();
@@ -4286,5 +4446,22 @@ img,canvas,svg,video{max-width:100%}
 .ad-login .lx-ann-name{font-size:12.5px;font-weight:600;color:#334155;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .ad-login .lx-ann-time{font-size:11px;color:#94A3B8}
 .ad-login .lx-signin[disabled]{cursor:default}
+</style>
+<style id="bulkprice-css">
+/* v1.80.0 Bulk Price Update preview */
+.bp-tbl td{vertical-align:middle}
+.bp-tbl tr.bp-chg{background:#ECFDF5}
+.bp-tbl tr.bp-chg td{border-bottom-color:#A7F3D0}
+.bp-tbl tr.bp-bad{background:#FEF2F2}
+.bp-tbl tr.bp-no{background:#F9FAFB;color:#6B7280}
+.bp-tbl tr.bp-same td{color:#6B7280}
+.bp-tbl b{color:#065F46}
+.bp-tbl tr.bp-bad b{color:#991B1B}
+.bp-tag{display:inline-block;font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;white-space:nowrap}
+.bp-tag.chg{background:#10B981;color:#fff}
+.bp-tag.same{background:#E5E7EB;color:#374151}
+.bp-tag.no{background:#9CA3AF;color:#fff}
+.bp-tag.bad{background:#EF4444;color:#fff}
+.bp-reason{display:inline-block;margin-left:6px;font-size:11px;color:#991B1B}
 </style>
 </body></html>
