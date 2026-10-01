@@ -100,6 +100,36 @@
     return { added: added, removed: removed, changed: changed };
   }
 
+  /* ------------------------------------------------------------------ */
+  /* Price-change stamping (v1.82.0). Runs against the LIVE data fetched  */
+  /* right before publishing. A SKU whose SRP or DP differs from live gets */
+  /* pSrp/pDp = the live (immediately preceding) prices and priceUpdatedAt */
+  /* = publish time. Unchanged SKUs keep the live record as-is, so        */
+  /* unrelated publishes / re-uploads never restart the 15-day badge.     */
+  /* Works on clones: the in-memory draft is only updated after success.  */
+  /* ------------------------------------------------------------------ */
+  var PC_KEYS = ["pSrp", "pDp", "priceUpdatedAt"];
+  function pcNum(x) { var v = Number(x); return isFinite(v) ? v : 0; }
+  function planPriceStamps(list, base, cleared) {
+    var byCode = {}, i, out = [], changed = [];
+    if (base) for (i = 0; i < base.length; i++) byCode[base[i].code] = base[i];
+    for (i = 0; i < list.length; i++) {
+      var c = JSON.parse(JSON.stringify(list[i])), lp = base ? byCode[c.code] : null;
+      if (lp) {
+        if (pcNum(lp.srp) !== pcNum(c.srp) || pcNum(lp.dp) !== pcNum(c.dp)) {
+          c.pSrp = pcNum(lp.srp); c.pDp = pcNum(lp.dp); c.priceUpdatedAt = null; /* set at send */
+          changed.push(c);
+        } else if (cleared && cleared.has && cleared.has(c.code)) {
+          PC_KEYS.forEach(function (k) { delete c[k]; });
+        } else {
+          PC_KEYS.forEach(function (k) { if (lp[k] != null) c[k] = lp[k]; else delete c[k]; });
+        }
+      }
+      out.push(c);
+    }
+    return { list: out, changed: changed, hasBase: !!base };
+  }
+
   function fetchLiveProducts() {
     return fetch(productsPath() + "?v=" + Date.now(), { cache: "no-store" })
       .then(function (r) { return r.ok ? r.json() : null; })
@@ -200,10 +230,14 @@
 
       /* 2) Compare with live data + keep a backup of what we are replacing. */
       var live = await fetchLiveProducts();
+      /* After a successful publish in this session, the data we just committed is the truth
+         (GitHub Pages can serve the previous products.json for ~1-2 min after a commit). */
+      var pcBase = (window.__LIVE_BASE && window.__LIVE_BASE_SELF) ? window.__LIVE_BASE : (live || window.__LIVE_BASE || null);
+      var plan = planPriceStamps(list, pcBase, window.__pcCleared);
       var diffLine = "", bigRemoval = false, backedUp = false;
       if (live) {
         backedUp = saveBackup(live);
-        var d = diffSummary(live, list);
+        var d = diffSummary(live, plan.list);
         diffLine = "\nLive now: " + live.length + " products. Changes: +" + d.added + " added, -" + d.removed + " removed, ~" + d.changed + " edited.";
         bigRemoval = d.removed >= Math.max(5, Math.round(live.length * 0.2));
       } else {
@@ -222,9 +256,23 @@
         if (!tok) return;
       }
 
+
+      /* 4) Confirm with a clear summary of what will happen. */
+      var summary = list.length + " products" + (imagePayload.length ? " + " + imagePayload.length + " image(s)" : "");
+      var confirmMsg = "Publish " + summary + " to GitHub?" + diffLine +
+        (backedUp ? "\n\nA backup of the current live data was saved on this device (console: cmsDownloadBackup())." : "") +
+        (plan.hasBase
+          ? (plan.changed.length ? "\nPrice changes: " + plan.changed.length + " SKU(s) - the 15-day \u201cPrice change\u201d badge starts when this publish succeeds." : "")
+          : "\nWARNING: live prices unavailable - price-change badges will not be updated by this publish.") +
+        "\nThis updates the live site for everyone.";
+      if (!window.confirm(confirmMsg)) return;
+      if (bigRemoval && !window.confirm("You are about to REMOVE a large number of live products.\nAre you absolutely sure?")) return;
+
+      var stampIso = new Date().toISOString();
+      plan.changed.forEach(function (c) { c.priceUpdatedAt = stampIso; });
       var body;
       try {
-        body = JSON.stringify({ token: tok, products: list, images: imagePayload, message: "Update products via Admin Panel" });
+        body = JSON.stringify({ token: tok, products: plan.list, images: imagePayload, message: "Update products via Admin Panel" });
       } catch (e) {
         window.alert("Publish cancelled: the product data could not be serialized (" + (e && e.message ? e.message : e) + ").");
         return;
@@ -233,14 +281,6 @@
         window.alert("Publish cancelled: payload is " + Math.round(body.length / 1048576) + " MB (limit ~15 MB).\nPublish fewer new images at once.");
         return;
       }
-
-      /* 4) Confirm with a clear summary of what will happen. */
-      var summary = list.length + " products" + (imagePayload.length ? " + " + imagePayload.length + " image(s)" : "");
-      var confirmMsg = "Publish " + summary + " to GitHub?" + diffLine +
-        (backedUp ? "\n\nA backup of the current live data was saved on this device (console: cmsDownloadBackup())." : "") +
-        "\nThis updates the live site for everyone.";
-      if (!window.confirm(confirmMsg)) return;
-      if (bigRemoval && !window.confirm("You are about to REMOVE a large number of live products.\nAre you absolutely sure?")) return;
 
       /* 5) Send, with a timeout so the button can never hang forever. */
       btn.textContent = "Saving...";
@@ -261,11 +301,21 @@
 
       if (res.ok && data.ok) {
         sessionStorage.setItem("cmsAdminToken", tok);
+        /* success only: copy stamped price-change records into the in-memory draft */
+        var byC = {};
+        plan.list.forEach(function (c) { byC[c.code] = c; });
+        list.forEach(function (p) {
+          var c = byC[p.code]; if (!c) return;
+          PC_KEYS.forEach(function (k) { if (c[k] != null) p[k] = c[k]; else delete p[k]; });
+        });
+        try { window.__LIVE_BASE = JSON.parse(JSON.stringify(plan.list)); window.__LIVE_BASE_SELF = true; } catch (e) {}
+        if (window.__pcCleared && window.__pcCleared.clear) window.__pcCleared.clear();
         var IMG = currentImages();
         if (IMG) imagePayload.forEach(function (im) { IMG[im.code] = imageBase() + safeCode(im.code) + ".webp"; });
         if (typeof window.rebuildAll === "function") { try { window.rebuildAll(); } catch (e) {} }
         toast("Published " + (data.committed || list.length) + " products"
-          + (data.images ? " + " + data.images + " image(s)" : "") + ". Live in ~1-2 min.", true);
+          + (data.images ? " + " + data.images + " image(s)" : "")
+          + (plan.changed.length ? " \u00b7 " + plan.changed.length + " price change(s) flagged for 15 days" : "") + ". Live in ~1-2 min.", true);
       } else if (res.status === 401) {
         sessionStorage.removeItem("cmsAdminToken");
         toast("Wrong passphrase - nothing was published. Click Publish to retry.", false);
@@ -309,6 +359,6 @@
 
   /* test hook (no effect in the browser) */
   if (typeof module !== "undefined" && module.exports) {
-    module.exports = { validatePayload: validatePayload, diffSummary: diffSummary };
+    module.exports = { validatePayload: validatePayload, diffSummary: diffSummary, planPriceStamps: planPriceStamps };
   }
 })();
