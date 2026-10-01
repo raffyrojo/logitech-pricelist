@@ -1491,14 +1491,8 @@ function buildCats(){
   let html=all.map(c=>`<button class="cat-pill${c.name===state.cat?' active':''}" data-cat="${c.name}">
     ${c.name==='All'?'<span class="ic">'+icon('_default','')+'</span>':'<span class="ic">'+icon(c.name,'')+'</span>'}
     ${c.name} <span class="count">${c.n}</span></button>`).join('');
-  const _chg=changedVars().length;
-  if(_chg>0){
-    html=`<button class="cat-pill chg-pill${state.cat==='__chg'?' active':''}" data-cat="__chg">
-      <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 7v10M7 7l-3 3M7 7l3 3"/><path d="M17 17V7M17 17l3-3M17 17l-3-3"/></svg></span>
-      Price Changes <span class="count">${_chg}</span></button>`+html;
-  }
   row.innerHTML=html;
-  row.querySelectorAll('.cat-pill').forEach(b=>b.onclick=()=>{state.cat=b.dataset.cat;if(b.dataset.cat==='__chg')state.q='';render();
+  row.querySelectorAll('.cat-pill').forEach(b=>b.onclick=()=>{state.cat=b.dataset.cat;render();
     document.getElementById('catalog').scrollIntoView({behavior:'smooth'});});
 }
 
@@ -1507,12 +1501,10 @@ function buildFeatured(){
   const order=['Mice','Keyboards','Combos','Webcams','Headsets','Speakers','Mouse pad','Presentation Remotes','iPad Keyboard Cases','Tablet Keyboards','Digital Pens'];
   const cats=order.filter(c=>CATS.includes(c)).concat(CATS.filter(c=>!order.includes(c)));
   const fg=document.getElementById('featGrid');
-  const _pcN=(typeof changedVars==='function')?changedVars().length:0;
-  const tiles=[{key:'All',label:'All Products',all:true}].concat(_pcN?[{key:'__chg',label:'Price Changes',chg:true,n:_pcN}]:[]).concat(cats.map(c=>({key:c,label:c})));
-  if(state.cat==='__chg' && !_pcN) state.cat='All';
+  const tiles=[{key:'All',label:'All Products',all:true}].concat(cats.map(c=>({key:c,label:c})));
+  if(state.cat==='__chg') state.cat='All';
   fg.innerHTML=tiles.map(t=>{
     let inner;
-    if(t.chg){ return `<button class="feat feat-chg${state.cat==='__chg'?' active':''}" data-cat="__chg"><span class="circle"><svg class="picon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 7v10M7 7l-3 3M7 7l3 3"/><path d="M17 17V7M17 17l3-3M17 17l-3-3"/></svg></span><h3>Price Changes <span class="feat-n">${t.n}</span></h3></button>`; }
     if(t.all){ inner='<svg class="picon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>'; }
     else { const rep=products.find(p=>p.category===t.key && IMAGES[p.code]);
       inner=rep?`<img src="${IMAGES[rep.code]}" alt="${t.label}" loading="lazy">`:icon(t.key,'picon'); }
@@ -1599,9 +1591,15 @@ function cardMedia(v,g){
   const src=IMAGES[v.code];
   return src?'<img src="'+src+'" alt="'+(g.name||'').replace(/"/g,'&quot;')+'" loading="lazy">':icon(g.category,'picon');
 }
+/* v1.83: previous price shown inline (smaller, muted, struck through) only for the field
+   that changed, only for this SKU, and only while varChanged(v) (15 days from publish). */
+function pcFields(v){ const on=varChanged(v); return { s:on&&v.pSrp!=null&&v.pSrp!==v.srp&&v.pSrp>0, d:on&&v.pDp!=null&&v.pDp!==v.dp&&v.pDp>0 }; }
+function pcWas(n){ return '<s class="pc-was" title="Previous price"><span class="pc-sr">was </span>'+peso(n)+'</s>'; }
+function pcFlagHTML(v){ return varChanged(v)?'<span class="pc-flag" title="Price changed in the last 15 days">↕ Price change</span>':''; }
 function priceHTML(v,g){
-  if(v.dp>0) return '<div class="price">'+(v.srp>0?'<span class="srp"><i>SRP</i> '+peso(v.srp)+'</span>':'')+'<span class="dp"><small>Dealer Price</small>'+peso(v.dp)+'</span></div>';
-  if(v.srp>0) return '<div class="price"><span class="big"><small>SRP</small> '+peso(v.srp)+'</span></div>';
+  const f=pcFields(v);
+  if(v.dp>0) return '<div class="price">'+(v.srp>0?'<span class="srp"><i>SRP</i> '+(f.s?pcWas(v.pSrp):'')+'<span class="pc-now">'+peso(v.srp)+'</span></span>':'')+'<span class="dp"><small>Dealer Price</small>'+(f.d?pcWas(v.pDp):'')+'<span class="pc-now">'+peso(v.dp)+'</span></span></div>';
+  if(v.srp>0) return '<div class="price"><span class="big"><small>SRP</small> '+(f.s?pcWas(v.pSrp):'')+'<span class="pc-now">'+peso(v.srp)+'</span></span></div>';
   return '<div class="price"><span class="req">On request</span></div>';
 }
 function swatchRow(g){
@@ -1616,8 +1614,7 @@ function clrHTML(g){
 /* ---------- filtering + sorting ---------- */
 function filtered(){
   let list=GROUPS.slice();
-  if(state.cat==='__chg') list=list.filter(grpChanged);
-  else if(state.cat!=='All') list=list.filter(g=>g.category===state.cat);
+  if(state.cat!=='All') list=list.filter(g=>g.category===state.cat);
   if(state.q){
     const terms=state.q.toLowerCase().split(/\s+/).filter(Boolean);
     list=list.filter(g=>{
@@ -1659,16 +1656,15 @@ const SHOT_ROW_HTML='<button class="shot rowshot" type="button" title="Screensho
 function render(){
   buildCats(); syncFeatured();
   const list=filtered();
-  const isChg=(state.cat==='__chg');
-  const skus=isChg?changedVars().length:viewSkuCount(list);
+  if(state.cat==='__chg') state.cat='All';
+  const skus=viewSkuCount(list);
   document.getElementById('resCount').textContent=list.length;
   {const _e=document.getElementById('skuTot'); if(_e)_e.innerHTML='<span class="bp">•</span> '+skus+' SKUs';}
   {const _n=document.getElementById('navCount'); if(_n)_n.textContent=skus+' SKUs';}
-  document.getElementById('catTitle').textContent=state.cat==='All'?'All products':(isChg?'Price Changes':state.cat);
+  document.getElementById('catTitle').textContent=state.cat==='All'?'All products':state.cat;
   document.getElementById('catSub').textContent=state.cat==='All'
-    ?'The complete Logitech price list.':(isChg?(skus+' SKU'+(skus===1?'':'s')+' with a recorded price change — previous → current'):(list.length+' '+state.cat.toLowerCase()+' in the range.'));
+    ?'The complete Logitech price list.':(list.length+' '+state.cat.toLowerCase()+' in the range.');
   const grid=document.getElementById('grid'), page=document.getElementById('tablePage');
-  if(isChg){ document.body.classList.remove('view-table'); page.hidden=true; grid.hidden=false; renderChangesView(grid); return; }
   document.body.classList.toggle('view-table',state.view==='table');
   if(state.view==='table'){ grid.hidden=true; page.hidden=false; renderTable(); return; }
   page.hidden=true; grid.hidden=false;
@@ -1676,7 +1672,7 @@ function render(){
   grid.innerHTML=list.map(g=>{
     const v=curVar(g);
     return '<article class="card" data-gi="'+g.gi+'">'
-      +'<div class="thumb"><span class="chan">'+escH(g.channel||'Channel')+'</span>'+(g.changed?'<span class="pc-flag" title="Recorded price change">↕ Price change</span>':'')+'<div class="media">'+cardMedia(v,g)+'</div>'+SHOT_HTML+'</div>'
+      +'<div class="thumb"><span class="chan">'+escH(g.channel||'Channel')+'</span>'+pcFlagHTML(v)+'<div class="media">'+cardMedia(v,g)+'</div>'+SHOT_HTML+'</div>'
       +swatchRow(g)
       +'<div class="body">'
         +'<div class="cat">'+hl(g.category)+'</div>'
@@ -1704,32 +1700,6 @@ function render(){
     c.addEventListener('click',()=>openModal(gi));
   });
 }
-/* ===== Price Changes before/after view (v1.81.0) ===== */
-function pcNum(n){ return (n>0)? peso(n) : '—'; }
-function pcArrow(prev,cur){ if(prev==null||prev===cur)return ''; return cur>prev?'<span class="pc-up" title="Increase">▲</span>':'<span class="pc-dn" title="Decrease">▼</span>'; }
-function renderChangesView(grid){
-  const items=changedVars();
-  if(!items.length){ grid.innerHTML=EMPTY_HTML; return; }
-  items.sort((a,b)=> (a.g.name||'').localeCompare(b.g.name||'') || (a.v.code||'').localeCompare(b.v.code||''));
-  const rows=items.map(({g,v})=>{
-    const img=IMAGES[v.code];
-    const sChg=(v.pSrp!=null&&v.pSrp!==v.srp), dChg=(v.pDp!=null&&v.pDp!==v.dp);
-    const which=(sChg&&dChg)?'SRP + DP':(sChg?'SRP':'DP');
-    return '<tr>'
-      +'<td class="c-img"><span class="dthumb">'+(img?'<img src="'+img+'" alt="">':icon(g.category,''))+'</span></td>'
-      +'<td class="mono code">'+escH(v.code)+'</td>'
-      +'<td class="pc-pn"><b>'+escH(g.name)+'</b>'+(v.color?'<span class="pc-clr"> · '+escH(v.color)+'</span>':'')+'<span class="pc-cat">'+escH(g.category)+'</span></td>'
-      +'<td class="num'+(sChg?' pc-was':'')+'">'+pcNum(sChg?v.pSrp:v.srp)+'</td>'
-      +'<td class="num'+(sChg?' pc-now':'')+'">'+pcNum(v.srp)+(sChg?' '+pcArrow(v.pSrp,v.srp):'')+'</td>'
-      +'<td class="num'+(dChg?' pc-was':'')+'">'+pcNum(dChg?v.pDp:v.dp)+'</td>'
-      +'<td class="num'+(dChg?' pc-now':'')+'">'+pcNum(v.dp)+(dChg?' '+pcArrow(v.pDp,v.dp):'')+'</td>'
-      +'<td><span class="pc-badge">'+which+'</span></td>'
-      +'</tr>';
-  }).join('');
-  grid.innerHTML='<div class="pc-wrap"><table class="pc-tbl"><thead><tr>'
-    +'<th></th><th>Part Number</th><th>Product</th><th class="num">Previous SRP</th><th class="num">Current SRP</th><th class="num">Previous DP</th><th class="num">Current DP</th><th>Price Change</th>'
-    +'</tr></thead><tbody>'+rows+'</tbody></table></div>';
-}
 /* ===== full-width Table (data) view — v1.9.1 ===== */
 const DCOLS=[
   {label:'',sort:null,cls:'c-img'},
@@ -1755,17 +1725,19 @@ const DSORT={
   srp:r=>r.v.srp||0, dealer:r=>r.v.dp||0,
   carton:r=>parseFloat(r.v.carton)||0, warranty:r=>parseFloat(r.g.warranty)||0
 };
+function srpCell(v){ const f=pcFields(v); return v.srp>0?(f.s?'<span class="pc-pair">'+pcWas(v.pSrp)+'<span class="pc-now">'+peso(v.srp)+'</span></span>':peso(v.srp)):'On request'; }
+function dpCell(v){ const f=pcFields(v); return v.dp>0?(f.d?'<span class="pc-pair">'+pcWas(v.pDp)+'<span class="pc-now">'+peso(v.dp)+'</span></span>':peso(v.dp)):'<span class="dimv">—</span>'; }
 function dRowHTML(r){
   const g=r.g, v=r.v, img=IMAGES[v.code];
   return '<tr data-gi="'+g.gi+'" data-vi="'+r.vi+'">'
     +'<td class="c-img"><span class="dthumb">'+(img?'<img src="'+img+'" alt="">':icon(g.category,''))+'</span></td>'
     +'<td class="cat" data-label="Category">'+hl(g.category)+'</td>'
-    +'<td class="pn" data-label="Product"><div class="pnwrap"><span>'+hl(g.name)+'</span>'+(varChanged(v)?'<span class="pc-dot" title="Recorded price change">↕ Price change</span>':'')+SHOT_ROW_HTML+'</div></td>'
+    +'<td class="pn" data-label="Product"><div class="pnwrap"><span>'+hl(g.name)+'</span>'+(varChanged(v)?'<span class="pc-dot" title="Price changed in the last 15 days">↕ Price change</span>':'')+SHOT_ROW_HTML+'</div></td>'
     +'<td class="mono code" data-label="Item Code">'+hl(v.code)+'</td>'
     +'<td class="c-color" data-label="Color"><span class="onesw" style="background:'+swatch(v.color)+'"></span><span class="cname">'+escH(v.color||'—')+'</span></td>'
     +'<td class="mono" data-label="UPC / EAN">'+hl(v.upc||'—')+'</td>'
-    +'<td class="num srp" data-label="SRP (₱)">'+(v.srp>0?peso(v.srp):'On request')+'</td>'
-    +'<td class="num dealer" data-label="DP (₱)">'+(v.dp>0?peso(v.dp):'<span class="dimv">—</span>')+'</td>'
+    +'<td class="num srp" data-label="SRP (₱)">'+srpCell(v)+'</td>'
+    +'<td class="num dealer" data-label="DP (₱)">'+dpCell(v)+'</td>'
     +'<td class="num mcq" data-label="MCQ">'+((v.carton&&v.carton!=='0')?escH(v.carton):'<span class="dimv">—</span>')+'</td>'
     +'<td class="num" data-label="Warranty">'+(g.warranty?escH(g.warranty)+' yr':'<span class="dimv">—</span>')+'</td>'
   +'</tr>';
@@ -1775,8 +1747,8 @@ function updateTableRow(tr,g){
   tr.querySelector('.dthumb').innerHTML=IMAGES[v.code]?'<img src="'+IMAGES[v.code]+'" alt="">':icon(g.category,'');
   tr.querySelector('.code').innerHTML=hl(v.code);
   tr.querySelector('.cname').textContent=v.color||'—';
-  tr.querySelector('.srp').innerHTML=v.srp>0?peso(v.srp):'On request';
-  tr.querySelector('.dealer').innerHTML=v.dp>0?peso(v.dp):'<span class="dimv">—</span>';
+  tr.querySelector('.srp').innerHTML=srpCell(v);
+  tr.querySelector('.dealer').innerHTML=dpCell(v);
   {const _m=tr.querySelector('.mcq');if(_m)_m.innerHTML=(v.carton&&v.carton!=='0')?escH(v.carton):'<span class="dimv">—</span>';}
   tr.querySelectorAll('.tsw').forEach((b,i)=>b.classList.toggle('on',i===g.sel));
 }
@@ -1871,6 +1843,7 @@ function updateCard(c,g){
   c.querySelector('.media').innerHTML=cardMedia(v,g);
   c.querySelector('.clr').innerHTML=clrHTML(g);
   c.querySelector('.pricewrap').innerHTML=priceHTML(v,g);
+  {const th=c.querySelector('.thumb'), old=th&&th.querySelector('.pc-flag'); if(old)old.remove(); const fh=pcFlagHTML(v); if(th&&fh)th.querySelector('.media').insertAdjacentHTML('beforebegin',fh);}
   c.querySelectorAll('.sw').forEach((b,i)=>b.classList.toggle('on',i===g.sel));
 }
 
@@ -4631,7 +4604,7 @@ img,canvas,svg,video{max-width:100%}
 .bp-tag.bad{background:#EF4444;color:#fff}
 .bp-reason{display:inline-block;margin-left:6px;font-size:11px;color:#991B1B}
 </style>
-<style id="pricechanges-css">.feat-chg .circle{background:#FEF3C7}.feat-chg .circle .picon{color:#B45309}.feat-n{display:inline-block;min-width:20px;padding:1px 7px;margin-left:4px;border-radius:999px;background:#FCD34D;color:#78350F;font-size:11px;font-weight:800;vertical-align:2px}.pc-st{display:inline-block;font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;white-space:nowrap}.pc-st-on{background:#FEF3C7;color:#92400E}.pc-st-exp{background:#F1F5F9;color:#64748B}.pc-st-pend{background:#E0F2FE;color:#075985}
+<style id="pricechanges-css">.pc-was{font-size:.62em;font-weight:500;color:var(--muted,#8a8f93);text-decoration:line-through;text-decoration-thickness:1px;margin-right:6px;white-space:nowrap;letter-spacing:0;vertical-align:.08em}.pc-now{white-space:nowrap}.pc-pair{display:inline-flex;align-items:baseline;justify-content:flex-end;flex-wrap:wrap;gap:0 2px}.pc-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}.card .price .srp .pc-was{font-size:11px}.dtable .pc-was{font-size:11.5px;margin-right:5px}.dtable td.num .pc-now{font-weight:inherit}.pc-st{display:inline-block;font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;white-space:nowrap}.pc-st-on{background:#FEF3C7;color:#92400E}.pc-st-exp{background:#F1F5F9;color:#64748B}.pc-st-pend{background:#E0F2FE;color:#075985}
 /* v1.81.0 Price Changes — public badge + before/after view */
 .cat-pill.chg-pill{color:#92400E;border-color:#FCD34D;background:#FFFBEB}
 .cat-pill.chg-pill.active{background:#F59E0B;border-color:#F59E0B;color:#fff}
