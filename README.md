@@ -17,7 +17,7 @@ The Logitech pricelist used by Iontech, Inc., the Logitech distributor in the Ph
 | Grid / List views | Grid shows product cards. List shows a sortable table. The choice is remembered on the device. |
 | Sort | Featured, Product Name (A–Z / Z–A), SRP (Low → High / High → Low). |
 | Product details | Opening a product shows its description, specifications, system requirements, dimensions, warranty and variants. |
-| Price Changes | SKUs with a recent published SRP/DP change get a **"↕ Price change"** badge, and a **Price Changes** tile shows previous vs current prices. See [Price Changes](#price-changes). |
+| Price changes | For 15 days after a published SRP/DP change, the SKU's card and list row show a **"↕ Price change"** badge and the previous price struck through beside the current price. See [Price Changes](#price-changes). |
 | Exports | The Export menu downloads the **current filtered view** as Excel (.xlsx), Excel + Specs (.xlsx), PDF (Catalog) or PDF (Grouped Catalog). |
 
 ### Admin tools
@@ -79,15 +79,28 @@ Edit (manual SKU edit / Bulk Price Update / Import)  →  Draft  →  Save (top 
 
 A SKU is flagged only when a publish **succeeds** and its SRP or DP **actually differs** from the live price at that moment.
 
+**How it looks on the public pricelist**
+
+| Where | Display |
+|---|---|
+| Grid card | "↕ Price change" badge on the image. The previous price appears smaller, muted and struck through beside the current price, e.g. ~~₱4,910.00~~ **₱4,995.00**. The current price keeps its normal size and colour. |
+| List row | Same badge next to the product name. The SRP and DP cells show the previous price struck through beside the current price. |
+| Which field | Only the field that changed. If only DP moved, SRP shows the current price alone. |
+| Colour variants | A card shows the change for the **selected** colour only; switching colour updates the badge and prices. In the list, each SKU row shows its own change. |
+
+There is no separate public Price Changes tile or page.
+
 | Rule | Behaviour |
 |---|---|
 | Start | On a successful publish, the SKU gets `pSrp`/`pDp` (the live prices **immediately before** the change) and an internal `priceUpdatedAt` timestamp. Draft edits and failed publishes set nothing. |
-| Visible for | **15 days (360 hours)** from `priceUpdatedAt`. The badge, the Price Changes tile, its count and the Price Changes table all use this rule. |
-| Expiry | Hidden at exactly 360 hours, even on a page that is already open (no refresh needed). |
+| Visible for | **15 days (360 hours)** from `priceUpdatedAt`. The badge and the struck-through previous price both use this rule. |
+| Expiry | At exactly 360 hours the badge and previous price are hidden and only the current price remains, even on a page that is already open (no refresh needed). |
 | Another price change | Restarts the 15 days. "Previous" becomes the price that was live just before the new change. |
 | Unrelated publish | Description edits, other SKUs, or re-uploading the same prices do **not** restart the timer. |
 | After expiry | The record stays in **Admin → Price Changes** as "Badge expired". |
-| Clear (Admin) | Removes a record. The public badge ends after the next Save. |
+| Clear (Admin) | Removes a record. The public badge and previous price disappear after the next Save. |
+
+**Admin → Price Changes** lists every SKU with a pending or published price change: previous vs current SRP and DP, which field changed, and a status of *Pending publish*, *Badge on* (time left) or *Badge expired*. You can search by part number or product name.
 
 The timestamp is not shown publicly. There is no effective-date field.
 
@@ -137,5 +150,5 @@ Notes:
 | Publish fails with 403 / 413 / 429 / 5xx | 403: site origin not allowed by the publish service. 413: too much data, so publish fewer new images at once. 429: wait a minute. 5xx: try again later. Your draft is kept in all cases. |
 | Publish timed out | Check the latest commit on `main` before retrying. The publish may or may not have gone through. |
 | Need the data from before a publish | In the browser console, run `cmsDownloadBackup()` to download the live data saved just before the last publish, then re-import it via Admin. |
-| Price Change badge not showing | The badge appears only after a **successful** publish where SRP or DP actually changed. Check Admin → Price Changes: "Pending publish" means it isn't live yet; "Badge expired" means the 15 days have passed. |
+| Price change badge or previous price not showing | They appear only after a **successful** publish where SRP or DP actually changed, and only for the selected colour on a card. Check Admin → Price Changes: "Pending publish" means it isn't live yet; "Badge expired" means the 15 days have passed. |
 | Edits disappeared after reload | Unpublished draft edits are not kept across reloads. Save (publish) before closing, or use Version History to keep a local snapshot. |
