@@ -1507,9 +1507,12 @@ function buildFeatured(){
   const order=['Mice','Keyboards','Combos','Webcams','Headsets','Speakers','Mouse pad','Presentation Remotes','iPad Keyboard Cases','Tablet Keyboards','Digital Pens'];
   const cats=order.filter(c=>CATS.includes(c)).concat(CATS.filter(c=>!order.includes(c)));
   const fg=document.getElementById('featGrid');
-  const tiles=[{key:'All',label:'All Products',all:true}].concat(cats.map(c=>({key:c,label:c})));
+  const _pcN=(typeof changedVars==='function')?changedVars().length:0;
+  const tiles=[{key:'All',label:'All Products',all:true}].concat(_pcN?[{key:'__chg',label:'Price Changes',chg:true,n:_pcN}]:[]).concat(cats.map(c=>({key:c,label:c})));
+  if(state.cat==='__chg' && !_pcN) state.cat='All';
   fg.innerHTML=tiles.map(t=>{
     let inner;
+    if(t.chg){ return `<button class="feat feat-chg${state.cat==='__chg'?' active':''}" data-cat="__chg"><span class="circle"><svg class="picon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 7v10M7 7l-3 3M7 7l3 3"/><path d="M17 17V7M17 17l3-3M17 17l-3-3"/></svg></span><h3>Price Changes <span class="feat-n">${t.n}</span></h3></button>`; }
     if(t.all){ inner='<svg class="picon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>'; }
     else { const rep=products.find(p=>p.category===t.key && IMAGES[p.code]);
       inner=rep?`<img src="${IMAGES[rep.code]}" alt="${t.label}" loading="lazy">`:icon(t.key,'picon'); }
@@ -1542,7 +1545,7 @@ function buildGroups(){
     let g=map.get(key);
     if(!g){ g={category:p.category,name:p.name,model:p.model,desc:p.desc,specs:p.specs,sysreq:p.sysreq,
       dim:p.dim,warranty:p.warranty,channel:p.channel,variants:[],sel:0}; map.set(key,g); order.push(g); }
-    g.variants.push({idx,code:p.code,color:p.color,srp:p.srp,dp:p.dp,upc:p.upc,material:p.material,carton:p.carton,pSrp:p.pSrp,pDp:p.pDp});
+    g.variants.push({idx,code:p.code,color:p.color,srp:p.srp,dp:p.dp,upc:p.upc,material:p.material,carton:p.carton,pSrp:p.pSrp,pDp:p.pDp,priceUpdatedAt:p.priceUpdatedAt});
   });
   const rank=c=>{c=(c||'').toLowerCase();
     if(/graphite|black|charcoal|kohle/.test(c))return 0;
@@ -1558,9 +1561,36 @@ function buildGroups(){
     g.changed=grpChanged(g);
   });
   GROUPS=order;
+  schedulePcExpiry();
 }
-/* ---------- price-change helpers (read-only; mirror admin trackPrice fields) ---------- */
-function varChanged(v){ return (v.pSrp!=null && v.pSrp!==v.srp) || (v.pDp!=null && v.pDp!==v.dp); }
+/* ---------- price-change helpers (v1.82.0) ----------
+   pSrp/pDp = the live SRP/DP immediately before the last PUBLISHED price change;
+   priceUpdatedAt = ISO time that change was published (stamped by js/publish.js on a
+   successful publish only). Public badge / pill / Price Changes view show a change for
+   360 h (15 days) from priceUpdatedAt and hide at exactly 360 h, even on an open page. */
+var PC_WINDOW_MS=360*3600*1000;
+function pcNow(){ return Date.now(); }
+function pcStart(v){ const t=(v&&v.priceUpdatedAt)?Date.parse(v.priceUpdatedAt):NaN; return isFinite(t)?t:NaN; }
+function pcActive(v,now){ const t=pcStart(v); if(!isFinite(t)) return false; return (now==null?pcNow():now) < t+PC_WINDOW_MS; }
+function pcMoved(v){ return (v.pSrp!=null && v.pSrp!==v.srp) || (v.pDp!=null && v.pDp!==v.dp); }
+function varChanged(v){ return pcActive(v) && pcMoved(v); }
+var _pcTimer=null;
+function schedulePcExpiry(){
+  if(_pcTimer){ clearTimeout(_pcTimer); _pcTimer=null; }
+  const now=pcNow(); let next=Infinity;
+  products.forEach(p=>{ const t=pcStart(p); if(isFinite(t)){ const e=t+PC_WINDOW_MS; if(e>now && e<next) next=e; } });
+  if(next===Infinity) return;
+  _pcTimer=setTimeout(pcExpireTick, Math.min(Math.max(0,next-now), 2147000000)); /* fires at expiry; reschedules if early */
+}
+function pcExpireTick(){
+  _pcTimer=null;
+  buildGroups();
+  if(state.cat==='__chg' && !changedVars().length) state.cat='All';
+  try{ buildFeatured(); }catch(e){}
+  try{ render(); }catch(e){}
+  try{ if(typeof window.__pcAdminRefresh==='function') window.__pcAdminRefresh(); }catch(e){}
+}
+document.addEventListener('visibilitychange',()=>{ if(!document.hidden && GROUPS.some(g=>g.changed!==grpChanged(g))) pcExpireTick(); });
 function grpChanged(g){ return (g.variants||[]).some(varChanged); }
 function changedVars(){ const out=[]; GROUPS.forEach(g=>g.variants.forEach(v=>{ if(varChanged(v)) out.push({g,v}); })); return out; }
 if(products.length){buildGroups();}
@@ -2530,7 +2560,7 @@ document.querySelectorAll('.vt').forEach(b=>b.classList.toggle('on',b.dataset.vi
       if(!res.ok) throw new Error('HTTP '+res.status);
       const data=await res.json();
       if(!Array.isArray(data)||!data.length) throw new Error('empty products.json');
-      products.length=0; data.forEach(p=>products.push(p)); window.__NET_OK=true;
+      products.length=0; data.forEach(p=>products.push(p)); window.__NET_OK=true; try{ window.__LIVE_BASE=JSON.parse(JSON.stringify(data)); }catch(_){}
       Object.keys(IMAGES).forEach(k=>delete IMAGES[k]);
       products.forEach(p=>{ if(p&&p.code) IMAGES[p.code]=imgBase+safeCode(p.code)+'.webp'; });
     }catch(e){ console.warn('[CMS] products.json load failed:', e.message); }
@@ -2863,8 +2893,8 @@ document.querySelectorAll('.vt').forEach(b=>b.classList.toggle('on',b.dataset.vi
     bulkPlan.forEach(r=>{
       if(r.status==='No Match'){noMatch++;return;}
       if(r.status==='Invalid'){invalid++;return;}
-      if(r.changed && r.pidx!=null){ const p=products[r.pidx]; const oS=p.srp,oD=p.dp,oPS=p.pSrp,oPD=p.pDp;
-        p.srp=r.newSRP; p.dp=r.newDP; trackPrice(p,oS,oD,oPS,oPD); updated++; }
+      if(r.changed && r.pidx!=null){ const p=products[r.pidx];
+        p.srp=r.newSRP; p.dp=r.newDP; updated++; } /* price-change record is stamped on successful publish (js/publish.js) */
       else unchanged++;
     });
     if(updated>0){ markDirty(); rebuildAll(); }
@@ -2910,48 +2940,71 @@ document.querySelectorAll('.vt').forEach(b=>b.classList.toggle('on',b.dataset.vi
     XLSX.writeFile(wb,'Logitech Bulk Price Update Template - '+stamp+'.xlsx');
   }
 
-  /* ================= PRICE CHANGES (admin review, v1.81.0) =================
-     Reviews all records with a recorded price change (pSrp/pDp set by trackPrice).
-     Draft-only until published. Reset = set current price as the new baseline. */
+  /* ================= PRICE CHANGES (admin review, v1.82.0) =================
+     Published records (pSrp/pDp/priceUpdatedAt) stay here after the 15-day public badge
+     expires. Pending = draft SRP/DP differs from the live price (timer starts on publish).
+     Clear = remove the record (badge ends after the next publish). */
   let pcQuery='';
   function pcMoney(n){ return (n>0)?'₱'+Number(n).toLocaleString('en-PH'):'—'; }
   function pcArw(prev,cur){ if(prev==null||prev===cur)return ''; return cur>prev?'<span style="color:#DC2626">▲</span>':'<span style="color:#059669">▼</span>'; }
-  function pcHasChange(p){ return (p.pSrp!=null&&p.pSrp!==p.srp)||(p.pDp!=null&&p.pDp!==p.dp); }
+  function pcLiveMap(){ const m=new Map(); (window.__LIVE_BASE||[]).forEach(b=>m.set(b.code,b)); return m; }
+  function pcRow(p,live){
+    const lp=live.get(p.code);
+    if(lp && (num(lp.srp)!==num(p.srp) || num(lp.dp)!==num(p.dp)))
+      return {p,pending:true,prevS:num(lp.srp),prevD:num(lp.dp)};
+    if(isFinite(pcStart(p)) && pcMoved(p)) return {p,pending:false,prevS:p.pSrp,prevD:p.pDp};
+    return null;
+  }
+  function pcStatus(r){
+    if(r.pending) return '<span class="pc-st pc-st-pend">Pending publish</span>';
+    const left=pcStart(r.p)+PC_WINDOW_MS-pcNow();
+    if(left<=0) return '<span class="pc-st pc-st-exp">Badge expired</span>';
+    const h=Math.ceil(left/3600000), d=Math.floor(h/24);
+    return '<span class="pc-st pc-st-on">Badge on · '+(d?d+'d ':'')+(h%24)+'h left</span>';
+  }
+  function pcHasChange(p){ return !!pcRow(p,pcLiveMap()); }
+  window.__pcAdminRefresh=function(){ if($('pcSearch')) renderPriceChanges(); };
   function renderPriceChanges(){
-    const all=products.filter(pcHasChange);
+    if(!window.__pcCleared) window.__pcCleared=new Set();
+    const live=pcLiveMap();
+    const all=products.map(p=>pcRow(p,live)).filter(Boolean);
+    const nOn=all.filter(r=>!r.pending&&pcActive(r.p)).length, nPend=all.filter(r=>r.pending).length;
     const q=pcQuery.trim().toLowerCase();
-    const list=all.filter(p=> !q || (''+p.code).toLowerCase().indexOf(q)>=0 || (''+p.name).toLowerCase().indexOf(q)>=0);
-    const rows=list.map(p=>{
-      const sChg=(p.pSrp!=null&&p.pSrp!==p.srp), dChg=(p.pDp!=null&&p.pDp!==p.dp);
+    const list=all.filter(r=> !q || (''+r.p.code).toLowerCase().indexOf(q)>=0 || (''+r.p.name).toLowerCase().indexOf(q)>=0);
+    const rows=list.map(r=>{ const p=r.p;
+      const sChg=(r.prevS!=null&&num(r.prevS)!==num(p.srp)), dChg=(r.prevD!=null&&num(r.prevD)!==num(p.dp));
       const which=(sChg&&dChg)?'SRP + DP':(sChg?'SRP':'DP');
       return `<tr>
         <td class="mono">${esc(p.code)}</td>
         <td><b>${esc(p.name)}</b>${p.color?' · '+esc(p.color):''}<div class="ad-note" style="margin:2px 0 0">${esc(p.category)}</div></td>
-        <td class="num ${sChg?'pcx-was':''}">${pcMoney(sChg?p.pSrp:p.srp)}</td>
-        <td class="num ${sChg?'pcx-now':''}">${pcMoney(p.srp)} ${sChg?pcArw(p.pSrp,p.srp):''}</td>
-        <td class="num ${dChg?'pcx-was':''}">${pcMoney(dChg?p.pDp:p.dp)}</td>
-        <td class="num ${dChg?'pcx-now':''}">${pcMoney(p.dp)} ${dChg?pcArw(p.pDp,p.dp):''}</td>
+        <td class="num ${sChg?'pcx-was':''}">${pcMoney(sChg?r.prevS:p.srp)}</td>
+        <td class="num ${sChg?'pcx-now':''}">${pcMoney(p.srp)} ${sChg?pcArw(r.prevS,p.srp):''}</td>
+        <td class="num ${dChg?'pcx-was':''}">${pcMoney(dChg?r.prevD:p.dp)}</td>
+        <td class="num ${dChg?'pcx-now':''}">${pcMoney(p.dp)} ${dChg?pcArw(r.prevD,p.dp):''}</td>
         <td><span class="pc-badge">${which}</span></td>
-        <td style="text-align:right"><button class="btn" style="padding:4px 10px;font-size:12px" data-reset="${esc(p.code)}">Reset</button></td>
+        <td>${pcStatus(r)}</td>
+        <td style="text-align:right">${r.pending?'':`<button class="btn" style="padding:4px 10px;font-size:12px" data-reset="${esc(p.code)}">Clear</button>`}</td>
       </tr>`;
     }).join('');
+    const nRec=all.filter(r=>!r.pending).length;
     $('adContent').innerHTML=`
-      <div class="sx-pagehead"><div><h3>Price Changes</h3><p>${all.length} SKU${all.length===1?'':'s'} with a recorded price change in this draft. Shows previous → current for SRP and DP. These appear on the live pricelist only after you Publish.</p></div></div>
+      <div class="sx-pagehead"><div><h3>Price Changes</h3><p>${nOn} SKU${nOn===1?'':'s'} showing the public “Price change” badge · ${nPend} pending publish · ${nRec} published record${nRec===1?'':'s'}. The badge shows for 15 days from a successful publish, then hides automatically; the record stays here.</p></div></div>
       <div class="sx-card">
         <div class="ad-toolbar" style="gap:10px;align-items:center">
           <div class="sx-search" style="flex:1;max-width:440px">${ICN.search}<input id="pcSearch" placeholder="Search by Part Number or Product Name…" value="${esc(pcQuery)}"></div>
-          <button class="btn" id="pcClear"${all.length?'':' disabled'}>Reset all</button>
+          <button class="btn" id="pcClear"${nRec?'':' disabled'}>Clear all records</button>
         </div>
         <div class="dt-wrap" style="margin-top:12px;max-height:60vh;overflow:auto"><table class="dt pcx-tbl"><thead><tr>
-          <th>Part Number</th><th>Product</th><th class="num">Prev SRP</th><th class="num">Cur SRP</th><th class="num">Prev DP</th><th class="num">Cur DP</th><th>Changed</th><th></th></tr></thead>
-          <tbody>${rows||`<tr><td colspan="8" class="ad-note" style="padding:14px">${all.length?'No matches for your search.':'No recorded price changes yet. Manual price edits and Bulk Price Update changes that actually move SRP or DP will appear here.'}</td></tr>`}</tbody></table></div>
-        <p class="ad-note" style="margin-top:10px"><b>Reset</b> sets the current price as the new baseline and clears the “changed” flag for that SKU — use it after a pricing round is published. Resetting marks the draft dirty; Save / Publish to make it live.</p>
+          <th>Part Number</th><th>Product</th><th class="num">Prev SRP</th><th class="num">Cur SRP</th><th class="num">Prev DP</th><th class="num">Cur DP</th><th>Changed</th><th>Status</th><th></th></tr></thead>
+          <tbody>${rows||`<tr><td colspan="9" class="ad-note" style="padding:14px">${all.length?'No matches for your search.':'No price changes yet. Manual price edits and Bulk Price Update changes that move SRP or DP show here as Pending, then start a 15-day badge when published.'}</td></tr>`}</tbody></table></div>
+        <p class="ad-note" style="margin-top:10px"><b>Previous</b> = the live price right before the last published change. The 15-day timer starts only on a successful publish and restarts only if that SKU’s SRP or DP changes again. <b>Clear</b> removes a record (badge ends on the next Save / Publish).</p>
       </div>`;
     const si=$('pcSearch'); if(si){ si.addEventListener('input',e=>{ pcQuery=e.target.value; const pos=si.selectionStart; renderPriceChanges(); const n=$('pcSearch'); if(n){ n.focus(); try{n.setSelectionRange(pos,pos);}catch(_){ } } }); }
+    const clr=p=>{ PC_KEYS.forEach(k=>delete p[k]); window.__pcCleared.add(p.code); };
     $('adContent').querySelectorAll('[data-reset]').forEach(b=>b.onclick=()=>{ const code=b.getAttribute('data-reset'); const p=products.find(x=>x.code===code);
-      if(p){ delete p.pSrp; delete p.pDp; markDirty(); rebuildAll(); renderPriceChanges(); } });
-    const ca=$('pcClear'); if(ca && all.length) ca.onclick=()=>{ if(!confirm('Reset ALL '+all.length+' recorded price change(s)? Current prices become the new baseline.'))return;
-      products.forEach(p=>{ delete p.pSrp; delete p.pDp; }); markDirty(); rebuildAll(); renderPriceChanges(); };
+      if(p){ clr(p); markDirty(); rebuildAll(); renderPriceChanges(); } });
+    const ca=$('pcClear'); if(ca && nRec) ca.onclick=()=>{ if(!confirm('Clear ALL '+nRec+' published price-change record(s)? Badges end on the next Save / Publish.'))return;
+      all.filter(r=>!r.pending).forEach(r=>clr(r.p)); markDirty(); rebuildAll(); renderPriceChanges(); };
   }
 
   /* ---------- PANEL SHELL (SaaS, v1.22.0) ---------- */
@@ -3097,11 +3150,15 @@ document.querySelectorAll('.vt').forEach(b=>b.classList.toggle('on',b.dataset.vi
   /* ================= SKU EDITOR ================= */
   let draft=null;
   const blankVariant=()=>({color:'',code:'',upc:'',material:'',srp:'',dp:'',img:''});
+  const SKU_GROUP_FIELDS=['name','category','model','channel','desc','specs','sysreq','dim','warranty','carton'];
   function openSkuEditor(cat,nm){
     if(cat!=null){const g=findGroup(cat,nm);
       draft={orig:{cat,nm},name:g.name,category:g.category,model:g.model||'',channel:g.channel||'',desc:g.desc||'',specs:g.specs||'',
         sysreq:g.sysreq||'',dim:g.dim||'',warranty:g.warranty||'',carton:g.carton||'',
         variants:g.variants.map(v=>({color:v.color||'',code:v.code,upc:v.upc||'',material:v.material||'',srp:v.srp||'',dp:v.dp||'',img:IMAGES[v.code]||''}))};
+      /* v1.82.1: remember what was loaded so save only overwrites fields the user actually changed */
+      draft._g={}; SKU_GROUP_FIELDS.forEach(f=>draft._g[f]=draft[f]);
+      draft.variants.forEach(v=>{ v._oc=v.code; v._o={color:v.color,upc:v.upc,material:v.material}; });
     } else {draft={orig:null,name:'',category:'',model:'',channel:'Hybrid',desc:'',specs:'',sysreq:'',dim:'',warranty:'',carton:'',variants:[blankVariant()]};}
     renderSkuEditor();
   }
@@ -3220,35 +3277,38 @@ document.querySelectorAll('.vt').forEach(b=>b.classList.toggle('on',b.dataset.vi
           <div style="margin-top:8px;font-size:18px;font-weight:800">${num(v.srp)>0?peso(num(v.srp)):'On request'} ${num(v.dp)>0?`<span style="font-size:12px;color:var(--accent-d);background:var(--accent-soft);padding:2px 8px;border-radius:6px;font-weight:700">DP ${peso(num(v.dp))}</span>`:''}</div>
         </div></div></div>`;
   }
-  /* shared price-change tracking — used by BOTH manual SKU edits and Bulk Price Update.
-     Stores the baseline SRP/DP (pSrp / pDp) on the record the first time a price moves
-     away from it, keeps that baseline across further edits, and clears it on revert.
-     A record "has a recorded price change" when pSrp or pDp is present. These fields
-     live on the product (so they publish with the draft and are draft-only until then). */
-  function trackPrice(rec, oldSrp, oldDp, oldPSrp, oldPDp){
-    let pS = (oldPSrp!=null?oldPSrp:undefined);
-    if(num(rec.srp)!==num(oldSrp)){ const base=(oldPSrp!=null)?oldPSrp:num(oldSrp);
-      pS = (num(rec.srp)===base)?undefined:base; }
-    if(pS==null) delete rec.pSrp; else rec.pSrp=pS;
-    let pD = (oldPDp!=null?oldPDp:undefined);
-    if(num(rec.dp)!==num(oldDp)){ const base=(oldPDp!=null)?oldPDp:num(oldDp);
-      pD = (num(rec.dp)===base)?undefined:base; }
-    if(pD==null) delete rec.pDp; else rec.pDp=pD;
-  }
+  /* price-change record carry-over (v1.82.0). saveSku rebuilds records, so copy the
+     published record (pSrp / pDp / priceUpdatedAt) onto the new record unchanged. Draft edits
+     never set these: js/publish.js stamps them only when a publish succeeds and SRP/DP
+     actually differ from the live price, using that live price as "previous". */
+  const PC_KEYS=['pSrp','pDp','priceUpdatedAt'];
+  function trackPrice(rec,o){ PC_KEYS.forEach(k=>{ if(o&&o[k]!=null) rec[k]=o[k]; else delete rec[k]; }); }
   function saveSku(){
     pullDraft();const errs=validateDraft();
     if(errs.length){$('skuErr').innerHTML=errs.join('<br>');$('previewWrap').innerHTML='';return;}
-    /* snapshot pre-edit prices by code so an edit that keeps the same code tracks its change */
-    const _oldPx=new Map(); products.forEach(p=>_oldPx.set(p.code,{srp:p.srp,dp:p.dp,pSrp:p.pSrp,pDp:p.pDp}));
+    /* v1.82.1: edit = merge onto the existing record. Every stored field (model, per-variant carton,
+       price-change record, anything else) is kept unless the user changed it in the editor.
+       Edited SKUs keep their position in the list. */
+    const _old=new Map(); products.forEach(p=>_old.set(p.code,p));
+    let at=-1;
     if(draft.orig){const oc=draft.orig.cat,on=draft.orig.nm;
-      for(let i=products.length-1;i>=0;i--)if(products[i].category===oc&&products[i].name===on)products.splice(i,1);}
+      for(let i=products.length-1;i>=0;i--)if(products[i].category===oc&&products[i].name===on){products.splice(i,1);at=i;}}
+    const og=draft._g||null, recs=[];
+    const val={name:draft.name.trim(),category:draft.category.trim(),model:(draft.model||'').trim(),channel:draft.channel,desc:draft.desc,
+      specs:draft.specs,sysreq:draft.sysreq,dim:draft.dim,warranty:draft.warranty,carton:draft.carton};
+    const same=(a,b)=>String(a==null?'':a)===String(b==null?'':b);
     draft.variants.forEach(v=>{const code=v.code.trim();
-      const rec={code,name:draft.name.trim(),category:draft.category.trim(),desc:draft.desc,color:v.color.trim(),
-        srp:num(v.srp),dp:num(v.dp),carton:draft.carton,upc:(v.upc||'').trim(),material:(v.material||'').trim(),
-        channel:draft.channel,specs:draft.specs,sysreq:draft.sysreq,dim:draft.dim,warranty:draft.warranty};
-      const o=_oldPx.get(code); if(o) trackPrice(rec,o.srp,o.dp,o.pSrp,o.pDp);
-      products.push(rec);
+      const base=(draft.orig && v._oc!=null)?_old.get(v._oc):null;
+      const rec=base?JSON.parse(JSON.stringify(base)):{};
+      rec.code=code;
+      SKU_GROUP_FIELDS.forEach(f=>{ if(!base || !og || !same(draft[f],og[f])){ if(f==='model'&&!val.model&&!base) return; rec[f]=val[f]; } });
+      const ov=v._o||{};
+      ['color','upc','material'].forEach(f=>{ if(!base || !same(v[f],ov[f])) rec[f]=(v[f]||'').trim(); });
+      ['srp','dp'].forEach(f=>{ if(!base || num(v[f])!==num(base[f])) rec[f]=num(v[f]); });
+      if(base && code!==base.code) PC_KEYS.forEach(k=>delete rec[k]); /* renamed code = new SKU for price-change tracking */
+      recs.push(rec);
       if(v.img)IMAGES[code]=v.img;});
+    if(at>=0) products.splice(at,0,...recs); else recs.forEach(r=>products.push(r));
     markDirty(); rebuildAll(); closeDrawer(); renderSkuList();
   }
   function duplicateSku(cat,nm){
@@ -4424,7 +4484,7 @@ img,canvas,svg,video{max-width:100%}
   .brand small{font-weight:600;padding-left:9px}
 }
 </style>
-<link rel="stylesheet" href="css/brand.css?v=20260704a"><script src="js/publish.js?v=20260708a"></script><script src="js/users.js?v=20260704a"></script>
+<link rel="stylesheet" href="css/brand.css?v=20260704a"><script src="js/publish.js?v=20261001a"></script><script src="js/users.js?v=20260704a"></script>
 <style id="lx-login-redesign">
 .ad-bg:has(.ad-login){background:rgba(2,17,30,.62);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);align-items:center;padding:24px}
 .ad-modal.ad-login{max-width:1120px;width:min(96vw,1120px);max-height:94vh;border-radius:24px;display:flex;overflow:hidden;background:#fff;color:#111827;font-family:'Roboto','Inter',system-ui,-apple-system,'Segoe UI',sans-serif;box-shadow:0 44px 110px -34px rgba(2,17,30,.40),0 14px 44px -18px rgba(2,17,30,.20);animation:lxpop .5s cubic-bezier(.16,1,.3,1)}
@@ -4571,7 +4631,7 @@ img,canvas,svg,video{max-width:100%}
 .bp-tag.bad{background:#EF4444;color:#fff}
 .bp-reason{display:inline-block;margin-left:6px;font-size:11px;color:#991B1B}
 </style>
-<style id="pricechanges-css">
+<style id="pricechanges-css">.feat-chg .circle{background:#FEF3C7}.feat-chg .circle .picon{color:#B45309}.feat-n{display:inline-block;min-width:20px;padding:1px 7px;margin-left:4px;border-radius:999px;background:#FCD34D;color:#78350F;font-size:11px;font-weight:800;vertical-align:2px}.pc-st{display:inline-block;font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;white-space:nowrap}.pc-st-on{background:#FEF3C7;color:#92400E}.pc-st-exp{background:#F1F5F9;color:#64748B}.pc-st-pend{background:#E0F2FE;color:#075985}
 /* v1.81.0 Price Changes — public badge + before/after view */
 .cat-pill.chg-pill{color:#92400E;border-color:#FCD34D;background:#FFFBEB}
 .cat-pill.chg-pill.active{background:#F59E0B;border-color:#F59E0B;color:#fff}
